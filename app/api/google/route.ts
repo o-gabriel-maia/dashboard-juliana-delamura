@@ -85,6 +85,10 @@ function derive(a: Agg) {
     loadRate: null,
     pageConversionRate: null,
     video3SecViews: 0,
+    videoP25: 0,
+    videoP50: 0,
+    videoP75: 0,
+    videoP100: 0,
     hookRate: null,
   };
 }

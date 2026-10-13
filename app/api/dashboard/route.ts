@@ -17,6 +17,10 @@ type MetaAdRow = {
   reach?: string;
   actions?: MetaAction[];
   results?: MetaResult[];
+  video_p25_watched_actions?: MetaAction[];
+  video_p50_watched_actions?: MetaAction[];
+  video_p75_watched_actions?: MetaAction[];
+  video_p100_watched_actions?: MetaAction[];
   instagram_profile_visits?: string;
 };
 
@@ -32,6 +36,11 @@ type MetaAgg = {
   pageClicks: number;
   pageConversions: number;
   video3SecViews: number;
+  // Reproduções que chegaram a 25%, 50%, 75% e 100% do vídeo (imagem fica em zero).
+  videoP25: number;
+  videoP50: number;
+  videoP75: number;
+  videoP100: number;
 };
 
 type DashboardRow = {
@@ -63,6 +72,10 @@ type DashboardRow = {
   pageConversionRate: number | null;
   video3SecViews: number;
   hookRate: number | null;
+  videoP25: number;
+  videoP50: number;
+  videoP75: number;
+  videoP100: number;
 };
 
 type EntityInfo = { status?: string; previewUrl?: string; thumbnailUrl?: string; imageUrl?: string };
@@ -133,6 +146,10 @@ const EMPTY_META_AGG: MetaAgg = {
   pageClicks: 0,
   pageConversions: 0,
   video3SecViews: 0,
+  videoP25: 0,
+  videoP50: 0,
+  videoP75: 0,
+  videoP100: 0,
 };
 
 function findAction(actions: MetaAction[] | undefined, type: string) {
@@ -148,6 +165,10 @@ type InsightRow = {
   actions?: MetaAction[];
   results?: MetaResult[];
   instagram_profile_visits?: string;
+  video_p25_watched_actions?: MetaAction[];
+  video_p50_watched_actions?: MetaAction[];
+  video_p75_watched_actions?: MetaAction[];
+  video_p100_watched_actions?: MetaAction[];
 };
 
 // Resultado principal da linha: leads. `page` é a parte que veio do pixel (página
@@ -181,6 +202,10 @@ function toAgg(row: InsightRow, group?: GroupKey, isForm = false): MetaAgg {
     pageClicks: isPage ? linkClicks : 0,
     pageConversions: isForm ? 0 : result.page,
     video3SecViews: findAction(row.actions, "video_view"),
+    videoP25: findAction(row.video_p25_watched_actions, "video_view"),
+    videoP50: findAction(row.video_p50_watched_actions, "video_view"),
+    videoP75: findAction(row.video_p75_watched_actions, "video_view"),
+    videoP100: findAction(row.video_p100_watched_actions, "video_view"),
   };
 }
 
@@ -241,7 +266,7 @@ async function fetchMetaAdLevel(account: Account, range: DateRange) {
   const rows = await metaGet<MetaAdRow>(account, "insights", {
     level: "ad",
     fields:
-      `ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,spend,impressions,reach,${RESULT_FIELDS}`,
+      `ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,spend,impressions,reach,${RESULT_FIELDS},video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions`,
     filtering: campaignFilter(account),
     time_range: JSON.stringify(range),
     limit: "500",
@@ -491,6 +516,10 @@ function sumAgg(a: MetaAgg, b: MetaAgg): MetaAgg {
     pageClicks: a.pageClicks + b.pageClicks,
     pageConversions: a.pageConversions + b.pageConversions,
     video3SecViews: a.video3SecViews + b.video3SecViews,
+    videoP25: a.videoP25 + b.videoP25,
+    videoP50: a.videoP50 + b.videoP50,
+    videoP75: a.videoP75 + b.videoP75,
+    videoP100: a.videoP100 + b.videoP100,
   };
 }
 
@@ -645,6 +674,10 @@ function addToAgg(map: Map<string, MetaAgg>, key: string, delta: MetaAgg) {
   current.pageClicks += delta.pageClicks;
   current.pageConversions += delta.pageConversions;
   current.video3SecViews += delta.video3SecViews;
+  current.videoP25 += delta.videoP25;
+  current.videoP50 += delta.videoP50;
+  current.videoP75 += delta.videoP75;
+  current.videoP100 += delta.videoP100;
   map.set(key, current);
 }
 
@@ -673,6 +706,10 @@ function derive(agg: MetaAgg) {
     pageConversionRate:
       agg.landingPageViews > 0 ? (agg.pageConversions / agg.landingPageViews) * 100 : null,
     video3SecViews: agg.video3SecViews,
+    videoP25: agg.videoP25,
+    videoP50: agg.videoP50,
+    videoP75: agg.videoP75,
+    videoP100: agg.videoP100,
     hookRate: agg.impressions > 0 ? (agg.video3SecViews / agg.impressions) * 100 : null,
   };
 }

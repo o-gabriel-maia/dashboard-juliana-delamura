@@ -71,6 +71,10 @@ type Metrics = {
   pageConversionRate: number | null;
   video3SecViews: number;
   hookRate: number | null;
+  videoP25: number;
+  videoP50: number;
+  videoP75: number;
+  videoP100: number;
 };
 
 type Row = Metrics & {
@@ -460,6 +464,16 @@ const METRIC_HELP: Record<string, string> = {
     "De cada 100 cliques no link, quantos esperaram a página abrir (visualizações da página ÷ cliques). Taxa baixa costuma indicar página lenta.",
   "Taxa de Conversão da Página":
     "De cada 100 pessoas que abriram a página, quantas viraram lead ou compra (resultados ÷ visualizações da página).",
+  "Hook Rate":
+    "De cada 100 vezes que o anúncio apareceu, quantas viraram uma reprodução de pelo menos 3 segundos do vídeo. Mostra se o início do vídeo prende a atenção. Só vale para vídeo; imagem fica zerada.",
+  "Visualizações 25%":
+    "Quantas reproduções do vídeo chegaram a pelo menos 25% da duração. Só vale para vídeo; imagem fica zerada.",
+  "Visualizações 50%":
+    "Quantas reproduções do vídeo chegaram a pelo menos 50% da duração. Só vale para vídeo; imagem fica zerada.",
+  "Visualizações 75%":
+    "Quantas reproduções do vídeo chegaram a pelo menos 75% da duração. Só vale para vídeo; imagem fica zerada.",
+  "Visualizações 100%":
+    "Quantas reproduções do vídeo foram assistidas até o fim. Só vale para vídeo; imagem fica zerada.",
   Cliques: "Cliques no link ou no botão do anúncio.",
   CPC: "Custo médio de cada clique no link.",
   Status: "Se a campanha, o conjunto ou o anúncio está rodando ou pausado.",
@@ -1337,6 +1351,11 @@ const ESSENTIAL_COLUMNS = new Set<SortKey>([
   "ctrLink",
   "loadRate",
   "pageConversionRate",
+  "hookRate",
+  "videoP25",
+  "videoP50",
+  "videoP75",
+  "videoP100",
 ]);
 
 function LevelTable({
@@ -1349,9 +1368,12 @@ function LevelTable({
   kind,
   dotColor,
   hideColumns,
+  videoMetrics,
 }: {
   // Colunas que a origem dos dados não tem (o Google Ads não informa alcance).
   hideColumns?: SortKey[];
+  // Hook rate e visualizações por faixa do vídeo (só fazem sentido na tabela de anúncios).
+  videoMetrics?: boolean;
   // Bolinha colorida antes do nome (cor da loja), quando a tabela mistura lojas.
   dotColor?: (name: string) => string;
   // Sem tipo (Resumo Geral) a tabela mistura campanhas de tipos diferentes.
@@ -1456,10 +1478,30 @@ function LevelTable({
       label: "Taxa de Conversão da Página",
       format: (r) => formatRate(hasPage(r) ? r.pageConversionRate : null),
     },
+    {
+      key: "hookRate",
+      label: "Hook Rate",
+      format: (r) => formatRate(r.name && isImageAd(r.name) ? 0 : r.hookRate),
+    },
+    ...(
+      [
+        ["videoP25", "Visualizações 25%"],
+        ["videoP50", "Visualizações 50%"],
+        ["videoP75", "Visualizações 75%"],
+        ["videoP100", "Visualizações 100%"],
+      ] as const
+    ).map(([key, label]) => ({
+      key,
+      label,
+      format: (r: Metrics & { name?: string }) => formatNumber(r.name && isImageAd(r.name) ? 0 : r[key]),
+    })),
   ];
+  const VIDEO_KEYS: SortKey[] = ["hookRate", "videoP25", "videoP50", "videoP75", "videoP100"];
 
   // Por padrão só as colunas que o cliente acompanha; as demais ficam a um clique.
-  const available = columns.filter((c) => !hideColumns?.includes(c.key));
+  const available = columns.filter(
+    (c) => !hideColumns?.includes(c.key) && (videoMetrics || !VIDEO_KEYS.includes(c.key)),
+  );
   const visibleColumns = showAll ? available : available.filter((c) => ESSENTIAL_COLUMNS.has(c.key));
   const minWidth = 256 + (showPreviewLink ? 96 : 0) + visibleColumns.length * 112;
 
@@ -1615,6 +1657,10 @@ function LevelTable({
 
 // O alcance do total não é a soma das linhas (a mesma pessoa pode ser alcançada
 // por várias delas): vem pronto da Meta para a campanha ou a conta inteira.
+// Criativo de imagem (nome termina em IMG): a Meta às vezes conta pequenas
+// reproduções de vídeo nele (imagem animada); para o cliente ficam zeradas.
+const isImageAd = (name: string) => /[_-]IMG$/i.test(name.trim());
+
 function computeSummary(rows: Row[], reach: number | null): Metrics {
   const sum = (fn: (r: Row) => number) => rows.reduce((s, r) => s + fn(r), 0);
   const spend = sum((r) => r.spend);
@@ -1625,7 +1671,14 @@ function computeSummary(rows: Row[], reach: number | null): Metrics {
   const landingPageViews = sum((r) => r.landingPageViews);
   const pageClicks = sum((r) => r.pageClicks);
   const pageConversions = sum((r) => r.pageConversions);
-  const video3SecViews = sum((r) => r.video3SecViews);
+  const videoRows = rows.filter((r) => !isImageAd(r.name));
+  const videoSum = (fn: (r: Row) => number) => videoRows.reduce((s, r) => s + fn(r), 0);
+  const video3SecViews = videoSum((r) => r.video3SecViews);
+  const videoImpressions = videoSum((r) => r.impressions);
+  const videoP25 = videoSum((r) => r.videoP25);
+  const videoP50 = videoSum((r) => r.videoP50);
+  const videoP75 = videoSum((r) => r.videoP75);
+  const videoP100 = videoSum((r) => r.videoP100);
 
   return {
     spend,
@@ -1647,7 +1700,11 @@ function computeSummary(rows: Row[], reach: number | null): Metrics {
     loadRate: pageClicks > 0 ? (landingPageViews / pageClicks) * 100 : null,
     pageConversionRate: landingPageViews > 0 ? (pageConversions / landingPageViews) * 100 : null,
     video3SecViews,
-    hookRate: impressions > 0 ? (video3SecViews / impressions) * 100 : null,
+    videoP25,
+    videoP50,
+    videoP75,
+    videoP100,
+    hookRate: videoImpressions > 0 ? (video3SecViews / videoImpressions) * 100 : null,
   };
 }
 
@@ -2339,6 +2396,7 @@ export default function Home() {
               rows={data.levels.ads.filter((r) => r.campaignId === activeCampaign.id)}
               nameLabel="Anúncio"
               showPreviewLink
+              videoMetrics={activeKind === "li35"}
             />
             {breakdowns?.age && breakdowns.age.length > 0 && activeCampaign.conversations > 0 && (
               <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
