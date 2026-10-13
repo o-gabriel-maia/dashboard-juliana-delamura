@@ -2586,13 +2586,85 @@ function TsNtsDailyTable({
   );
   const cost = (spend: number, leads: number) => (leads > 0 ? spend / leads : null);
   const head = "px-2.5 py-2.5 text-center";
+  const narrow = useIsNarrow();
+  // O gráfico segue a ordem do tempo (mais antigo primeiro); a tabela, a inversa.
+  const chart = rows.map((r) => {
+    const leads = pick(r);
+    const total = leads.meta + leads.google;
+    const spend = r.metaSpend + r.googleSpend;
+    return {
+      date: r.date,
+      metaSpend: r.metaSpend,
+      googleSpend: r.googleSpend,
+      spend,
+      meta: leads.meta,
+      google: leads.google,
+      total,
+      cost: total > 0 ? spend / total : null,
+    };
+  });
+  const costName = `Custo por ${label.replace("Leads", "Lead")}`;
+  const dot = (color: string) => ({ r: 2.5, fill: color, stroke: "#ffffff", strokeWidth: 1.5 });
   return (
     <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <h3 className="mb-3 text-sm font-semibold text-gray-900">
         {title}
-        <ChartNote note="(só tráfego pago, mais recente primeiro)" />
+        <ChartNote note="(só tráfego pago)" />
       </h3>
-      <div className="max-h-[480px] overflow-auto">
+      <ResponsiveContainer width="100%" height={300}>
+        <ComposedChart data={chart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid stroke="#e5e7eb" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={formatChartDate}
+            tick={AXIS_TICK}
+            axisLine={AXIS_LINE}
+            tickLine={false}
+            minTickGap={16}
+          />
+          <YAxis
+            yAxisId="money"
+            tick={AXIS_TICK}
+            axisLine={AXIS_LINE}
+            tickLine={false}
+            tickFormatter={formatAxisBRL}
+            width={72}
+            hide={narrow}
+          />
+          <YAxis
+            yAxisId="count"
+            orientation="right"
+            allowDecimals={false}
+            tick={AXIS_TICK}
+            axisLine={AXIS_LINE}
+            tickLine={false}
+            tickFormatter={(v: number) => formatNumber(v)}
+            width={48}
+            hide={narrow}
+          />
+          <YAxis yAxisId="cost" orientation="right" width={0} domain={[0, "auto"]} hide />
+          <Tooltip
+            content={
+              <ChartTooltip
+                valueFormatter={(v, name) =>
+                  name?.startsWith("Investimento") || name === costName
+                    ? formatBRL(v)
+                    : formatNumber(v)
+                }
+              />
+            }
+          />
+          <Legend wrapperStyle={{ fontSize: 12, color: "#6b7280" }} />
+          <Line yAxisId="money" type="monotone" dataKey="spend" name="Investimento Total" stroke="#64748b" strokeWidth={2} dot={dot("#64748b")} />
+          <Line yAxisId="money" type="monotone" dataKey="metaSpend" name="Investimento Meta" stroke="#93c5fd" strokeWidth={2} strokeDasharray="5 4" dot={dot("#93c5fd")} />
+          <Line yAxisId="money" type="monotone" dataKey="googleSpend" name="Investimento Google" stroke="#86efac" strokeWidth={2} strokeDasharray="5 4" dot={dot("#86efac")} />
+          <Line yAxisId="count" type="monotone" dataKey="total" name={`${label} Total`} stroke="#7c3aed" strokeWidth={2.5} dot={dot("#7c3aed")} />
+          <Line yAxisId="count" type="monotone" dataKey="meta" name={`${label} Meta`} stroke="#2563eb" strokeWidth={2} dot={dot("#2563eb")} />
+          <Line yAxisId="count" type="monotone" dataKey="google" name={`${label} Google`} stroke="#16a34a" strokeWidth={2} dot={dot("#16a34a")} />
+          <Line yAxisId="cost" type="monotone" dataKey="cost" name={costName} stroke="#f59e0b" strokeWidth={2} dot={dot("#f59e0b")} connectNulls />
+        </ComposedChart>
+      </ResponsiveContainer>
+      <div className="mt-4 max-h-[480px] overflow-auto">
         <table className="w-full text-sm" style={{ minWidth: 860 }}>
           <thead className="sticky top-0 z-10 bg-gray-50">
             <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
