@@ -14,6 +14,8 @@ const TAB = "Leads C/UTM";
 // Origem de tráfego pago: o nome da UTM de origem tem "paid". Meta Ads usa
 // fb-paid-hot e fb-paid-cold; o Google Ads (YouTube) usa yt-paid-hot.
 const PAID_SOURCE = /paid/i;
+// Dentro do tráfego pago, o que é do Google Ads (YouTube); o resto é do Meta Ads.
+const GOOGLE_SOURCE = /(^|[-_])(yt|youtube|google|gads)([-_]|$)/i;
 const DEFAULT_RANGE_DAYS = 30;
 const MAX_RANGE_DAYS = 370;
 
@@ -22,8 +24,11 @@ type Counts = {
   ntsPaid: number;
   tsOther: number;
   ntsOther: number;
+  // Parte do tráfego pago que veio do Google Ads (o resto é do Meta Ads).
+  tsGoogle: number;
+  ntsGoogle: number;
 };
-const EMPTY: Counts = { tsPaid: 0, ntsPaid: 0, tsOther: 0, ntsOther: 0 };
+const EMPTY: Counts = { tsPaid: 0, ntsPaid: 0, tsOther: 0, ntsOther: 0, tsGoogle: 0, ntsGoogle: 0 };
 
 function todayInBrazil() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
@@ -104,6 +109,8 @@ function sumCounts(rows: Counts[]): Counts {
       ntsPaid: a.ntsPaid + b.ntsPaid,
       tsOther: a.tsOther + b.tsOther,
       ntsOther: a.ntsOther + b.ntsOther,
+      tsGoogle: a.tsGoogle + b.tsGoogle,
+      ntsGoogle: a.ntsGoogle + b.ntsGoogle,
     }),
     { ...EMPTY }
   );
@@ -141,6 +148,10 @@ export async function GET(request: Request) {
       const day = byDate.get(date) ?? { ...EMPTY };
       if (isTs) day[paid ? "tsPaid" : "tsOther"]++;
       else day[paid ? "ntsPaid" : "ntsOther"]++;
+      if (paid && GOOGLE_SOURCE.test(source ?? "")) {
+        if (isTs) day.tsGoogle++;
+        else day.ntsGoogle++;
+      }
       byDate.set(date, day);
     }
 
