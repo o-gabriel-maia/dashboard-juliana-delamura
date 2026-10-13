@@ -2554,154 +2554,81 @@ function formatTableDate(iso: string) {
   return `${d}/${m}/${y}`;
 }
 
-// Uma tabela por dia só de TS ou só de NTS: investimento de cada plataforma, os
-// leads de cada uma e o custo por lead do dia (investimento total ÷ leads).
-function TsNtsDailyTable({
-  title,
-  label,
-  rows,
-  pick,
-}: {
-  title: string;
-  label: string;
-  rows: TsNtsDay[];
-  pick: (r: TsNtsDay) => { meta: number; google: number };
-}) {
-  const lines = [...rows].reverse().map((r) => {
-    const leads = pick(r);
-    const total = leads.meta + leads.google;
-    const spend = r.metaSpend + r.googleSpend;
-    return { date: r.date, metaSpend: r.metaSpend, googleSpend: r.googleSpend, spend, ...leads, total };
-  });
+// Uma tabela por dia com o investimento de cada plataforma e, ao lado, os leads
+// TS e os leads NTS (por plataforma e total) com o custo por lead de cada um.
+function TsNtsDailyTable({ rows }: { rows: TsNtsDay[] }) {
+  const lines = [...rows].reverse().map((r) => ({
+    ...r,
+    spend: r.metaSpend + r.googleSpend,
+    tsTotal: r.tsMeta + r.tsGoogle,
+    ntsTotal: r.ntsMeta + r.ntsGoogle,
+  }));
   const sum = lines.reduce(
     (a, l) => ({
       metaSpend: a.metaSpend + l.metaSpend,
       googleSpend: a.googleSpend + l.googleSpend,
       spend: a.spend + l.spend,
-      meta: a.meta + l.meta,
-      google: a.google + l.google,
-      total: a.total + l.total,
+      tsMeta: a.tsMeta + l.tsMeta,
+      tsGoogle: a.tsGoogle + l.tsGoogle,
+      tsTotal: a.tsTotal + l.tsTotal,
+      ntsMeta: a.ntsMeta + l.ntsMeta,
+      ntsGoogle: a.ntsGoogle + l.ntsGoogle,
+      ntsTotal: a.ntsTotal + l.ntsTotal,
     }),
-    { metaSpend: 0, googleSpend: 0, spend: 0, meta: 0, google: 0, total: 0 },
+    { metaSpend: 0, googleSpend: 0, spend: 0, tsMeta: 0, tsGoogle: 0, tsTotal: 0, ntsMeta: 0, ntsGoogle: 0, ntsTotal: 0 },
   );
   const cost = (spend: number, leads: number) => (leads > 0 ? spend / leads : null);
   const head = "px-2.5 py-2.5 text-center";
-  const narrow = useIsNarrow();
-  // O gráfico segue a ordem do tempo (mais antigo primeiro); a tabela, a inversa.
-  const chart = rows.map((r) => {
-    const leads = pick(r);
-    const total = leads.meta + leads.google;
-    const spend = r.metaSpend + r.googleSpend;
-    return {
-      date: r.date,
-      metaSpend: r.metaSpend,
-      googleSpend: r.googleSpend,
-      spend,
-      meta: leads.meta,
-      google: leads.google,
-      total,
-      cost: total > 0 ? spend / total : null,
-    };
-  });
-  const costName = `Custo por ${label.replace("Leads", "Lead")}`;
-  const dot = (color: string) => ({ r: 2.5, fill: color, stroke: "#ffffff", strokeWidth: 1.5 });
+  const cell = "px-2.5 py-2.5 text-center";
+  const columns: { label: string; get: (l: (typeof lines)[number] | typeof sum) => string; strong?: boolean }[] = [
+    { label: "Investimento Meta", get: (l) => formatBRL(l.metaSpend) },
+    { label: "Investimento Google", get: (l) => formatBRL(l.googleSpend) },
+    { label: "Investimento Total", get: (l) => formatBRL(l.spend) },
+    { label: "Leads TS Meta", get: (l) => formatNumber(l.tsMeta) },
+    { label: "Leads TS Google", get: (l) => formatNumber(l.tsGoogle) },
+    { label: "Leads TS Total", get: (l) => formatNumber(l.tsTotal), strong: true },
+    { label: "Custo por Lead TS", get: (l) => formatBRL(cost(l.spend, l.tsTotal)) },
+    { label: "Leads NTS Meta", get: (l) => formatNumber(l.ntsMeta) },
+    { label: "Leads NTS Google", get: (l) => formatNumber(l.ntsGoogle) },
+    { label: "Leads NTS Total", get: (l) => formatNumber(l.ntsTotal), strong: true },
+    { label: "Custo por Lead NTS", get: (l) => formatBRL(cost(l.spend, l.ntsTotal)) },
+  ];
   return (
     <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <h3 className="mb-3 text-sm font-semibold text-gray-900">
-        {title}
-        <ChartNote note="(só tráfego pago)" />
+        Investimento, Leads TS e Leads NTS por Dia
+        <ChartNote note="(só tráfego pago, mais recente primeiro)" />
       </h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={chart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-          <CartesianGrid stroke="#e5e7eb" vertical={false} />
-          <XAxis
-            dataKey="date"
-            tickFormatter={formatChartDate}
-            tick={AXIS_TICK}
-            axisLine={AXIS_LINE}
-            tickLine={false}
-            minTickGap={16}
-          />
-          <YAxis
-            yAxisId="money"
-            tick={AXIS_TICK}
-            axisLine={AXIS_LINE}
-            tickLine={false}
-            tickFormatter={formatAxisBRL}
-            width={72}
-            hide={narrow}
-          />
-          <YAxis
-            yAxisId="count"
-            orientation="right"
-            allowDecimals={false}
-            tick={AXIS_TICK}
-            axisLine={AXIS_LINE}
-            tickLine={false}
-            tickFormatter={(v: number) => formatNumber(v)}
-            width={48}
-            hide={narrow}
-          />
-          <YAxis yAxisId="cost" orientation="right" width={0} domain={[0, "auto"]} hide />
-          <Tooltip
-            content={
-              <ChartTooltip
-                valueFormatter={(v, name) =>
-                  name?.startsWith("Investimento") || name === costName
-                    ? formatBRL(v)
-                    : formatNumber(v)
-                }
-              />
-            }
-          />
-          <Legend wrapperStyle={{ fontSize: 12, color: "#6b7280" }} />
-          <Line yAxisId="money" type="monotone" dataKey="spend" name="Investimento Total" stroke="#64748b" strokeWidth={2} dot={dot("#64748b")} />
-          <Line yAxisId="money" type="monotone" dataKey="metaSpend" name="Investimento Meta" stroke="#93c5fd" strokeWidth={2} strokeDasharray="5 4" dot={dot("#93c5fd")} />
-          <Line yAxisId="money" type="monotone" dataKey="googleSpend" name="Investimento Google" stroke="#86efac" strokeWidth={2} strokeDasharray="5 4" dot={dot("#86efac")} />
-          <Line yAxisId="count" type="monotone" dataKey="total" name={`${label} Total`} stroke="#7c3aed" strokeWidth={2.5} dot={dot("#7c3aed")} />
-          <Line yAxisId="count" type="monotone" dataKey="meta" name={`${label} Meta`} stroke="#2563eb" strokeWidth={2} dot={dot("#2563eb")} />
-          <Line yAxisId="count" type="monotone" dataKey="google" name={`${label} Google`} stroke="#16a34a" strokeWidth={2} dot={dot("#16a34a")} />
-          <Line yAxisId="cost" type="monotone" dataKey="cost" name={costName} stroke="#f59e0b" strokeWidth={2} dot={dot("#f59e0b")} connectNulls />
-        </ComposedChart>
-      </ResponsiveContainer>
-      <div className="mt-4 max-h-[480px] overflow-auto">
-        <table className="w-full text-sm" style={{ minWidth: 860 }}>
+      <div className="max-h-[560px] overflow-auto">
+        <table className="w-full text-sm" style={{ minWidth: 1280 }}>
           <thead className="sticky top-0 z-10 bg-gray-50">
             <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
               <th className="px-2.5 py-2.5 text-left">Data</th>
-              <th className={head}>Investimento Meta</th>
-              <th className={head}>Investimento Google</th>
-              <th className={head}>Investimento Total</th>
-              <th className={head}>{label} Meta</th>
-              <th className={head}>{label} Google</th>
-              <th className={head}>{label} Total</th>
-              <th className={head}>Custo por {label.replace("Leads", "Lead")}</th>
+              {columns.map((c) => (
+                <th key={c.label} className={head}>
+                  {c.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {lines.map((l) => (
               <tr key={l.date} className="border-b border-gray-100">
                 <td className="px-2.5 py-2.5 text-left text-gray-900">{formatTableDate(l.date)}</td>
-                <td className="px-2.5 py-2.5 text-center">{formatBRL(l.metaSpend)}</td>
-                <td className="px-2.5 py-2.5 text-center">{formatBRL(l.googleSpend)}</td>
-                <td className="px-2.5 py-2.5 text-center">{formatBRL(l.spend)}</td>
-                <td className="px-2.5 py-2.5 text-center">{formatNumber(l.meta)}</td>
-                <td className="px-2.5 py-2.5 text-center">{formatNumber(l.google)}</td>
-                <td className="px-2.5 py-2.5 text-center font-semibold text-gray-900">
-                  {formatNumber(l.total)}
-                </td>
-                <td className="px-2.5 py-2.5 text-center">{formatBRL(cost(l.spend, l.total))}</td>
+                {columns.map((c) => (
+                  <td key={c.label} className={`${cell} ${c.strong ? "font-semibold text-gray-900" : ""}`}>
+                    {c.get(l)}
+                  </td>
+                ))}
               </tr>
             ))}
             <tr className="sticky bottom-0 bg-gray-50 font-semibold">
               <td className="px-2.5 py-2.5 text-left">Total</td>
-              <td className="px-2.5 py-2.5 text-center">{formatBRL(sum.metaSpend)}</td>
-              <td className="px-2.5 py-2.5 text-center">{formatBRL(sum.googleSpend)}</td>
-              <td className="px-2.5 py-2.5 text-center">{formatBRL(sum.spend)}</td>
-              <td className="px-2.5 py-2.5 text-center">{formatNumber(sum.meta)}</td>
-              <td className="px-2.5 py-2.5 text-center">{formatNumber(sum.google)}</td>
-              <td className="px-2.5 py-2.5 text-center">{formatNumber(sum.total)}</td>
-              <td className="px-2.5 py-2.5 text-center">{formatBRL(cost(sum.spend, sum.total))}</td>
+              {columns.map((c) => (
+                <td key={c.label} className={cell}>
+                  {c.get(sum)}
+                </td>
+              ))}
             </tr>
           </tbody>
         </table>
@@ -2917,53 +2844,6 @@ function TsLeadsSection({
 
           <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 className="mb-4 text-sm font-semibold text-gray-900">
-              Leads TS e NTS por Dia
-              <ChartNote note="(só tráfego pago, pela data de inscrição na planilha)" />
-            </h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <ComposedChart data={data.daily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="#e5e7eb" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={formatChartDate}
-                  tick={AXIS_TICK}
-                  axisLine={AXIS_LINE}
-                  tickLine={false}
-                  minTickGap={16}
-                />
-                <YAxis
-                  allowDecimals={false}
-                  tick={AXIS_TICK}
-                  axisLine={AXIS_LINE}
-                  tickLine={false}
-                  tickFormatter={(v: number) => formatNumber(v)}
-                  width={48}
-                  hide={narrow}
-                />
-                <Tooltip content={<ChartTooltip valueFormatter={(v) => formatNumber(v)} />} />
-                <Legend wrapperStyle={{ fontSize: 12, color: "#6b7280" }} />
-                <Line
-                  type="monotone"
-                  dataKey="tsPaid"
-                  name="Leads TS"
-                  stroke="#2563eb"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "#2563eb", stroke: "#ffffff", strokeWidth: 2 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="ntsPaid"
-                  name="Leads NTS"
-                  stroke="#f59e0b"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "#f59e0b", stroke: "#ffffff", strokeWidth: 2 }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-sm font-semibold text-gray-900">
               Investimento (Meta e Google), Leads TS e Leads NTS por Dia
               <ChartNote note="(barras: investimento de cada plataforma; linhas: leads de tráfego pago e custo por lead, que aparece ao passar o mouse)" />
             </h3>
@@ -3088,18 +2968,7 @@ function TsLeadsSection({
             </ResponsiveContainer>
           </div>
 
-          <TsNtsDailyTable
-            title="Leads TS por Dia"
-            label="Leads TS"
-            rows={days}
-            pick={(r) => ({ meta: r.tsMeta, google: r.tsGoogle })}
-          />
-          <TsNtsDailyTable
-            title="Leads NTS por Dia"
-            label="Leads NTS"
-            rows={days}
-            pick={(r) => ({ meta: r.ntsMeta, google: r.ntsGoogle })}
-          />
+          <TsNtsDailyTable rows={days} />
         </div>
       )}
     </div>
