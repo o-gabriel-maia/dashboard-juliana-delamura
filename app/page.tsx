@@ -2565,6 +2565,9 @@ function SectionTitle({
   );
 }
 
+// Leads TS e NTS da planilha para um nome de conjunto/grupo ou de anúncio, por plataforma.
+type SheetByName = { platform: "meta" | "google"; name: string; ts: number; nts: number };
+
 type LeadsCounts = {
   tsPaid: number;
   ntsPaid: number;
@@ -2580,8 +2583,8 @@ type LeadsData = {
   previousTotals: LeadsCounts;
   daily: ({ date: string } & LeadsCounts)[];
   withoutAnswer: number;
-  byAdset: { name: string; ts: number; nts: number }[];
-  byAd: { name: string; ts: number; nts: number }[];
+  byAdset: SheetByName[];
+  byAd: SheetByName[];
 };
 
 type TsNtsDay = {
@@ -2690,6 +2693,7 @@ function TsByNameTable({
   note,
   nameLabel,
   metaRows,
+  googleRows,
   sheetRows,
   showPreview,
 }: {
@@ -2697,35 +2701,52 @@ function TsByNameTable({
   note: string;
   nameLabel: string;
   metaRows: Row[];
-  sheetRows: { name: string; ts: number; nts: number }[];
+  googleRows: Row[];
+  sheetRows: SheetByName[];
   // Miniatura do anúncio (o de maior gasto entre os de mesmo nome).
   showPreview?: boolean;
 }) {
-  const meta = new Map<string, { spend: number; leads: number; preview?: Row }>();
-  for (const r of metaRows) {
-    const item = meta.get(r.name) ?? { spend: 0, leads: 0 };
-    item.spend += r.spend;
-    item.leads += r.conversations;
-    if (!item.preview || r.spend > item.preview.spend) item.preview = r;
-    meta.set(r.name, item);
-  }
+  type Platform = "meta" | "google";
+  const spendBy = new Map<
+    string,
+    { platform: Platform; name: string; spend: number; leads: number; preview?: Row }
+  >();
+  const addRows = (rows: Row[], platform: Platform) => {
+    for (const r of rows) {
+      const key = `${platform}|${r.name}`;
+      const item = spendBy.get(key) ?? { platform, name: r.name, spend: 0, leads: 0 };
+      item.spend += r.spend;
+      item.leads += r.conversations;
+      if (!item.preview || r.spend > item.preview.spend) item.preview = r;
+      spendBy.set(key, item);
+    }
+  };
+  addRows(metaRows, "meta");
+  addRows(googleRows, "google");
   // UTM que não foi substituída ({{ad.name}}, {{adset.name}}...) não vale: fica de fora.
-  const sheet = new Map(sheetRows.filter((r) => !/[{}]/.test(r.name)).map((r) => [r.name, r]));
-  const names = new Set([...meta.keys(), ...sheet.keys()]);
-  const lines = [...names]
-    .map((name) => {
-      const m = meta.get(name) ?? { spend: 0, leads: 0, preview: undefined };
-      const sh = sheet.get(name) ?? { ts: 0, nts: 0 };
+  const sheet = new Map(
+    sheetRows.filter((r) => !/[{}]/.test(r.name)).map((r) => [`${r.platform}|${r.name}`, r]),
+  );
+  const keys = new Set([...spendBy.keys(), ...sheet.keys()]);
+  const lines = [...keys]
+    .map((key) => {
+      const m = spendBy.get(key);
+      const sh = sheet.get(key) ?? { platform: "meta" as Platform, name: "", ts: 0, nts: 0 };
+      const platform = m?.platform ?? sh.platform;
+      const name = m?.name ?? sh.name;
+      const spend = m?.spend ?? 0;
       return {
+        key,
+        platform,
         name,
-        preview: m.preview,
-        spend: m.spend,
-        metaLeads: m.leads,
+        preview: m?.preview,
+        spend,
+        metaLeads: m?.leads ?? 0,
         ts: sh.ts,
         nts: sh.nts,
-        inMeta: meta.has(name),
-        cplTs: sh.ts > 0 && m.spend > 0 ? m.spend / sh.ts : null,
-        cplAll: sh.ts + sh.nts > 0 && m.spend > 0 ? m.spend / (sh.ts + sh.nts) : null,
+        inPlatform: !!m,
+        cplTs: sh.ts > 0 && spend > 0 ? spend / sh.ts : null,
+        cplAll: sh.ts + sh.nts > 0 && spend > 0 ? spend / (sh.ts + sh.nts) : null,
       };
     })
     .filter((l) => l.spend > 0 || l.ts + l.nts > 0)
@@ -2754,9 +2775,10 @@ function TsByNameTable({
           <thead className="sticky top-0 z-10 bg-gray-50">
             <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
               <th className="px-2.5 py-2.5 text-left">{nameLabel}</th>
+              <th className={head}>Plataforma</th>
               {showPreview && <th className={head}>Prévia</th>}
-              <th className={head}>Investimento Meta</th>
-              <th className={head}>Leads (Meta)</th>
+              <th className={head}>Investimento</th>
+              <th className={head}>Leads (plataforma)</th>
               <th className={head}>Leads TS</th>
               <th className={head}>Leads NTS</th>
               <th className={head}>% de Leads TS</th>
@@ -2766,10 +2788,20 @@ function TsByNameTable({
           </thead>
           <tbody>
             {lines.map((l) => (
-              <tr key={l.name} className="border-b border-gray-100">
+              <tr key={l.key} className="border-b border-gray-100">
                 <td className="px-2.5 py-2.5 text-left text-gray-900">
                   {l.name}
-                  {!l.inMeta && <span className="ml-2 text-xs text-gray-400">(sem gasto no Meta)</span>}
+                  {!l.inPlatform && (
+                    <span className="ml-2 text-xs text-gray-400">
+                      (sem gasto no {l.platform === "google" ? "Google" : "Meta"})
+                    </span>
+                  )}
+                </td>
+                <td className={cell}>
+                  <span className="inline-flex items-center gap-1.5">
+                    {l.platform === "google" ? <GoogleAdsLogo size={16} /> : <MetaLogo size={16} />}
+                    {l.platform === "google" ? "Google" : "Meta"}
+                  </span>
                 </td>
                 {showPreview && (
                   <td className="w-24 px-2.5 py-2 text-center">
@@ -2791,6 +2823,7 @@ function TsByNameTable({
             ))}
             <tr className="sticky bottom-0 bg-gray-50 font-semibold">
               <td className="px-2.5 py-2.5 text-left">Total</td>
+              <td />
               {showPreview && <td />}
               <td className={cell}>{formatBRL(total.spend)}</td>
               <td className={cell}>{formatNumber(total.metaLeads)}</td>
@@ -2936,6 +2969,8 @@ function TsLeadsSection({
   googleDaily,
   metaAdsets,
   metaAds,
+  googleAdsets,
+  googleAds,
 }: {
   range: DateRange;
   refreshKey: string;
@@ -2947,6 +2982,8 @@ function TsLeadsSection({
   googleDaily: DailyPoint[];
   metaAdsets: Row[];
   metaAds: Row[];
+  googleAdsets: Row[];
+  googleAds: Row[];
 }) {
   const key = `${range.since}:${range.until}:${refreshKey}`;
   const [result, setResult] = useState<{ key: string; data?: LeadsData; error?: string }>();
@@ -3260,17 +3297,19 @@ function TsLeadsSection({
           <TsNtsDailyTable rows={days} />
 
           <TsByNameTable
-            title="Custo por Lead TS por Público (conjunto)"
-            note="(gasto do Meta ÷ leads TS da planilha com a UTM do conjunto; nomes iguais em campanhas diferentes são somados)"
-            nameLabel="Conjunto"
+            title="Custo por Lead TS por Público (conjunto ou grupo)"
+            note="(gasto de cada plataforma ÷ leads TS da planilha com a UTM do conjunto ou grupo; nomes iguais em campanhas diferentes são somados)"
+            nameLabel="Conjunto / Grupo"
             metaRows={metaAdsets}
+            googleRows={googleAdsets}
             sheetRows={data.byAdset ?? []}
           />
           <TsByNameTable
             title="Custo por Lead TS por Criativo (anúncio)"
-            note="(gasto do Meta ÷ leads TS da planilha com a UTM do anúncio; nomes iguais em conjuntos diferentes são somados)"
+            note="(gasto de cada plataforma ÷ leads TS da planilha com a UTM do anúncio; nomes iguais em conjuntos diferentes são somados)"
             nameLabel="Anúncio"
             metaRows={metaAds}
+            googleRows={googleAds}
             sheetRows={data.byAd ?? []}
             showPreview
           />
@@ -3507,6 +3546,8 @@ function GoogleAdsSection({
         googleDaily={data?.dailyChart ?? []}
         metaAdsets={metaAdsets}
         metaAds={metaAds}
+        googleAdsets={data?.levels.adsets ?? []}
+        googleAds={data?.levels.ads ?? []}
         previousSpend={
           metaPrevious ? metaPrevious.spend + (data?.previousTotals.spend ?? 0) : null
         }

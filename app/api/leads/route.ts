@@ -141,10 +141,11 @@ export async function GET(request: Request) {
     }
 
     const byDate = new Map<string, Counts>();
-    // Leads do Meta por nome de conjunto (utm medium) e de anúncio (utm content),
-    // para cruzar com o gasto de cada um.
-    const byAdset = new Map<string, { ts: number; nts: number }>();
-    const byAd = new Map<string, { ts: number; nts: number }>();
+    // Leads de tráfego pago por plataforma e por nome de conjunto/grupo (utm
+    // medium) e de anúncio (utm content), para cruzar com o gasto de cada um. A
+    // chave leva a plataforma porque o mesmo nome existe no Meta e no Google.
+    const byAdset = new Map<string, { platform: "meta" | "google"; name: string; ts: number; nts: number }>();
+    const byAd = new Map<string, { platform: "meta" | "google"; name: string; ts: number; nts: number }>();
     let withoutAnswer = 0;
     for (const [dateBr, answer, source, medium, content] of table.slice(1)) {
       const date = isoDate(dateBr ?? "");
@@ -164,10 +165,12 @@ export async function GET(request: Request) {
         if (isTs) day.tsGoogle++;
         else day.ntsGoogle++;
       }
-      if (paid && !GOOGLE_SOURCE.test(source ?? "") && inRange(date, range)) {
-        const add = (map: Map<string, { ts: number; nts: number }>, name: string) => {
-          const key = name.trim() || "(sem nome)";
-          const item = map.get(key) ?? { ts: 0, nts: 0 };
+      if (paid && inRange(date, range)) {
+        const platform = GOOGLE_SOURCE.test(source ?? "") ? "google" : "meta";
+        const add = (map: typeof byAdset, raw: string) => {
+          const name = raw.trim() || "(sem nome)";
+          const key = `${platform}|${name}`;
+          const item = map.get(key) ?? { platform, name, ts: 0, nts: 0 };
           if (isTs) item.ts++;
           else item.nts++;
           map.set(key, item);
@@ -193,8 +196,8 @@ export async function GET(request: Request) {
       previousTotals: totalsOf(previous),
       daily,
       withoutAnswer,
-      byAdset: [...byAdset].map(([name, v]) => ({ name, ...v })),
-      byAd: [...byAd].map(([name, v]) => ({ name, ...v })),
+      byAdset: [...byAdset.values()],
+      byAd: [...byAd.values()],
     }, { headers: CACHE_HEADERS });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao ler a planilha de leads.";
