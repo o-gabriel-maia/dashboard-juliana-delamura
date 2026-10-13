@@ -233,6 +233,34 @@ function resolveRange(since: string | null, until: string | null): DateRange {
   return { since: addDays(today, -(DEFAULT_RANGE_DAYS - 1)), until: today };
 }
 
+// A Meta às vezes responde com erro passageiro (limite de chamadas, instabilidade
+// ou "tente de novo"): repete até 3 vezes, com espera crescente, antes de falhar.
+const TRANSIENT_CODES = new Set([1, 2, 4, 17, 32, 341, 613, 80000, 80001, 80002, 80003, 80004, 80005, 80006, 80008, 80014]);
+async function fetchMetaPage(url: string) {
+  let lastError = "Erro desconhecido";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
+    let json: { data?: unknown[]; paging?: { next?: string }; error?: { message?: string; code?: number; is_transient?: boolean } };
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      json = await res.json();
+      if (!res.ok && !json.error) {
+        lastError = `A Meta respondeu com erro ${res.status}.`;
+        if (res.status >= 500) continue;
+        break;
+      }
+    } catch {
+      lastError = "Não foi possível falar com a Meta.";
+      continue;
+    }
+    if (!json.error) return json;
+    lastError = `Erro na API da Meta: ${json.error.message}`;
+    const transient = json.error.is_transient || TRANSIENT_CODES.has(json.error.code ?? -1);
+    if (!transient) break;
+  }
+  throw new Error(lastError);
+}
+
 async function metaGet<T>(
   account: Account,
   path: string,
@@ -248,11 +276,7 @@ async function metaGet<T>(
   const rows: T[] = [];
 
   while (url) {
-    const res: Response = await fetch(url, { cache: "no-store" });
-    const json = await res.json();
-    if (json.error) {
-      throw new Error(`Erro na API da Meta: ${json.error.message}`);
-    }
+    const json = await fetchMetaPage(url);
     rows.push(...((json.data || []) as T[]));
     url = json.paging?.next;
   }

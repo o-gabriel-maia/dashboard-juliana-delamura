@@ -1847,6 +1847,9 @@ export default function Home() {
       setError(friendlyError(e));
       // Sem nada na tela, mostra os últimos dados salvos neste navegador.
       setData((current) => current ?? readLastData());
+      // Falha passageira da Meta: tenta de novo sozinho, até 2 vezes seguidas.
+      staleRetries.current += 1;
+      if (staleRetries.current <= 2) nextDelay = 8 * 1000;
     } finally {
       setLoading(false);
       setRefreshing(false);
