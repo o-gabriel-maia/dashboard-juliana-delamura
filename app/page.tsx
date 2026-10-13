@@ -366,12 +366,12 @@ function kindOf(name: string): Kind {
 }
 
 // O dashboard tem um perfil só; o menu não mostra grupo nem resumo de loja.
-const STORES = ["Silhouette Experts"] as const;
+const STORES = ["Juliana Delamura"] as const;
 type Store = (typeof STORES)[number];
 const MULTI_STORE = (STORES as readonly string[]).length > 1;
 const KIND_ORDER: Kind[] = ["ls", "promo", "li35"];
 const STORE_COLORS: Record<Store, string> = {
-  "Silhouette Experts": "#2563eb",
+  "Juliana Delamura": "#2563eb",
 };
 // Cor fixa de cada produto nas roscas e na tabela do Resumo Geral.
 const KIND_COLORS: Record<Kind, string> = {
@@ -383,7 +383,7 @@ const storePanel = (store: Store) => `loja:${store}`;
 
 function storeOf(fullName: string): Store {
   void fullName;
-  return "Silhouette Experts";
+  return "Juliana Delamura";
 }
 
 // Nome da campanha fora do menu, onde as lojas aparecem misturadas.
@@ -1339,7 +1339,6 @@ function LevelTable({
   rows,
   nameLabel,
   formatName = shortName,
-  searchable,
   totalReach,
   showPreviewLink,
   kind,
@@ -1356,7 +1355,6 @@ function LevelTable({
   rows: Row[];
   nameLabel: string;
   formatName?: (name: string) => string;
-  searchable?: boolean;
   // Alcance real (sem duplicar pessoas) do conjunto de linhas da tabela.
   totalReach: number | null;
   showPreviewLink?: boolean;
@@ -1481,34 +1479,32 @@ function LevelTable({
             {showAll ? "Ver menos colunas" : "Ver todas as colunas"}
           </button>
         </div>
-        {searchable && (
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                aria-label="Filtrar por status"
-                className="appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3.5 pr-9 text-sm font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                {STATUS_FILTERS.map((f) => (
-                  <option key={f.key} value={f.key}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={16}
-                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-            </div>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Buscar ${nameLabel.toLowerCase()}...`}
-              className="w-56 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="Filtrar por status"
+              className="appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3.5 pr-9 text-sm font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {STATUS_FILTERS.map((f) => (
+                <option key={f.key} value={f.key}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={16}
+              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
             />
           </div>
-        )}
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={`Buscar ${nameLabel.toLowerCase()}...`}
+            className="w-56 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
       </div>
       <div className="max-h-[560px] overflow-auto">
         <table className="w-full table-fixed text-sm" style={{ minWidth }}>
@@ -1960,12 +1956,12 @@ export default function Home() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/foto-cliente.jpg"
-                alt="Silhouette Experts"
+                alt="Juliana Delamura"
                 width={160}
                 height={160}
                 className="h-9 w-9 rounded-full object-cover ring-1 ring-white/20"
               />
-              <span className="truncate text-sm font-semibold text-white">Silhouette Experts</span>
+              <span className="truncate text-sm font-semibold text-white">Juliana Delamura</span>
             </div>
             <div className="mt-1 text-[11px] text-slate-400">
               {data && (
@@ -2018,7 +2014,7 @@ export default function Home() {
           >
             {!sidebarCollapsed && (
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Dashboard Silhouette Experts
+                Dashboard Juliana Delamura
               </div>
             )}
             <button
@@ -2040,13 +2036,13 @@ export default function Home() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/foto-cliente.jpg"
-                  alt="Silhouette Experts"
+                  alt="Juliana Delamura"
                   width={160}
                   height={160}
                   className="h-20 w-20 rounded-full object-cover ring-2 ring-white/15"
                 />
                 <span className="text-sm font-semibold leading-tight text-white">
-                  Silhouette Experts
+                  Juliana Delamura
                 </span>
               </h1>
             </>
@@ -2336,7 +2332,6 @@ export default function Home() {
               totalReach={activeCampaign.reach}
               rows={data.levels.ads.filter((r) => r.campaignId === activeCampaign.id)}
               nameLabel="Anúncio"
-              searchable
               showPreviewLink
             />
             {breakdowns?.age && breakdowns.age.length > 0 && activeCampaign.conversations > 0 && (
@@ -2585,7 +2580,6 @@ function GoogleAdsSection({
                 totalReach={null}
                 rows={data.levels.ads}
                 nameLabel="Anúncio"
-                searchable
                 showPreviewLink
                 hideColumns={GOOGLE_HIDDEN_COLUMNS}
               />

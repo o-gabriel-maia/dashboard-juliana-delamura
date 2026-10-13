@@ -78,9 +78,23 @@ type GroupKey = "ls" | "promo" | "li35";
 const AD_ACCOUNT_ID = "519177155682126"; // Silhouette Experts
 // `search` são os trechos pedidos à Meta; `prefix`, quando existe, confere o
 // começo do nome no lugar das tags.
-const GROUPS: { key: GroupKey; name: string; tags: string[]; search?: string[]; prefix?: RegExp }[] = [
+// `names` são nomes exatos (em maiúsculas) de campanhas fora do padrão da tag.
+const GROUPS: {
+  key: GroupKey;
+  name: string;
+  tags: string[];
+  search?: string[];
+  prefix?: RegExp;
+  names?: string[];
+}[] = [
   { key: "ls", name: "Captação Live Secreta", tags: ["LIVE_SECRETA"] },
-  { key: "promo", name: "Captação Promo Diária", tags: ["PROMO_DIARIA"] },
+  {
+    key: "promo",
+    name: "Captação Promo Diária",
+    tags: ["PROMO_DIARIA"],
+    search: ["PROMO_DIARIA", "Promo Diária"],
+    names: ["[LOJA] [FORM] PROMO DIÁRIA"],
+  },
   { key: "li35", name: "Captação LI 35", tags: ["[LI35]"] },
 ];
 type CampaignInfo = { id: string; name: string; effective_status?: string };
@@ -89,6 +103,9 @@ type CampaignInfo = { id: string; name: string; effective_status?: string };
 type Account = {
   id: string;
   campaigns: Record<string, GroupKey>;
+  // Campanhas de formulário nativo: não levam a uma página, então ficam sem
+  // visualização de página e sem as taxas da página.
+  formCampaigns: Record<string, true>;
   stores: Record<GroupKey, string[]>;
   list: CampaignInfo[];
 };
@@ -146,11 +163,13 @@ function resultOf(row: InsightRow, group: GroupKey | undefined) {
   return { total: page > 0 ? page : findAction(row.actions, ACTION_FORM_LEAD), page };
 }
 
-function toAgg(row: InsightRow, group?: GroupKey): MetaAgg {
+function toAgg(row: InsightRow, group?: GroupKey, isForm = false): MetaAgg {
   const result = resultOf(row, group);
-  const landingPageViews = findAction(row.actions, "landing_page_view");
+  // Formulário nativo não passa por página: a Meta ainda registra algumas
+  // visualizações, que não valem para as taxas da página.
+  const landingPageViews = isForm ? 0 : findAction(row.actions, "landing_page_view");
   const linkClicks = findAction(row.actions, "link_click");
-  const isPage = landingPageViews > 0 || result.page > 0;
+  const isPage = !isForm && (landingPageViews > 0 || result.page > 0);
   return {
     spend: parseFloat(row.spend || "0"),
     conversations: result.total,
@@ -160,7 +179,7 @@ function toAgg(row: InsightRow, group?: GroupKey): MetaAgg {
     linkClicks,
     landingPageViews,
     pageClicks: isPage ? linkClicks : 0,
-    pageConversions: result.page,
+    pageConversions: isForm ? 0 : result.page,
     video3SecViews: findAction(row.actions, "video_view"),
   };
 }
@@ -275,7 +294,7 @@ async function fetchCampaignTotals(account: Account, range: DateRange) {
     limit: "500",
   });
   const map = new Map<string, MetaAgg>();
-  for (const row of rows) map.set(row.campaign_id, toAgg(row, account.campaigns[row.campaign_id]));
+  for (const row of rows) map.set(row.campaign_id, toAgg(row, account.campaigns[row.campaign_id], !!account.formCampaigns[row.campaign_id]));
   return map;
 }
 
@@ -509,7 +528,7 @@ async function fetchDailySeries(account: Account, range: DateRange) {
   const total = new Map<string, MetaAgg>();
   const byCampaign = new Map<string, Map<string, MetaAgg>>();
   for (const row of rows) {
-    const agg = toAgg(row, account.campaigns[row.campaign_id]);
+    const agg = toAgg(row, account.campaigns[row.campaign_id], !!account.formCampaigns[row.campaign_id]);
     total.set(row.date_start, sumAgg(total.get(row.date_start) ?? EMPTY_META_AGG, agg));
     const campaignDays = byCampaign.get(row.campaign_id) ?? new Map<string, MetaAgg>();
     campaignDays.set(row.date_start, agg);
@@ -524,6 +543,7 @@ async function resolveAccount(): Promise<Account> {
   const account: Account = {
     id: AD_ACCOUNT_ID,
     campaigns: {},
+    formCampaigns: {},
     stores: { ls: [], promo: [], li35: [] },
     list: [],
   };
@@ -548,8 +568,9 @@ async function resolveAccount(): Promise<Account> {
       const name = campaign.name.toUpperCase();
       const matches = group.prefix
         ? group.prefix.test(name)
-        : group.tags.every((tag) => name.includes(tag));
+        : group.tags.every((tag) => name.includes(tag)) || !!group.names?.includes(name);
       if (!matches || account.campaigns[campaign.id]) continue;
+      if (/FORM_NATIVO|\[FORM\]/.test(name)) account.formCampaigns[campaign.id] = true;
       account.campaigns[campaign.id] = group.key;
       account.stores[group.key].push(campaign.id);
       account.list.push(campaign);
@@ -736,7 +757,7 @@ export async function GET(request: Request) {
 
     for (const row of metaAds) {
       const group = account.campaigns[row.campaign_id];
-      const delta = toAgg(row, group);
+      const delta = toAgg(row, group, !!account.formCampaigns[row.campaign_id]);
       names.set(row.ad_id, row.ad_name);
       names.set(row.adset_id, row.adset_name);
       names.set(row.campaign_id, row.campaign_name);

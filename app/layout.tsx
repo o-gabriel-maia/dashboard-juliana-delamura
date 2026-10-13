@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dashboard Silhouette Experts",
+  title: "Dashboard Juliana Delamura",
   description: "Campanhas de Meta Ads",
 };
 

@@ -8,8 +8,10 @@ Versão publicada: https://dashboard-juliana-delamura.vercel.app
 
 - **Resumo Geral**: visão consolidada das três frentes de captação.
 - **Captação Live Secreta**: campanhas com `LIVE_SECRETA` no nome (só Meta Ads). Resultado: leads.
-- **Captação Promo Diária**: campanhas com `PROMO_DIARIA` no nome (só Meta Ads). Resultado: leads.
+- **Captação Promo Diária**: campanhas com `PROMO_DIARIA` no nome e a campanha `[LOJA] [FORM] Promo Diária` (só Meta Ads). Resultado: leads.
 - **Captação LI 35**: campanhas com `[LI35]` no nome. Meta Ads primeiro e Google Ads depois, com um total das duas plataformas no fim.
+
+Campanhas de formulário nativo (`FORM_NATIVO` ou `[FORM]` no nome) ficam sem as taxas da página. Todas as tabelas têm filtro de status e busca por nome.
 
 As campanhas entram em cada aba pela tag no nome: campanha nova com a tag aparece sozinha. Entram as ativas e as pausadas que tiveram gasto no período escolhido. O resultado é o mesmo da coluna "Resultados" do Gerenciador de Anúncios (leads por formulário nativo ou pelo pixel).
 
