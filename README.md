@@ -2,6 +2,8 @@
 
 Dashboard de acompanhamento das campanhas de captação de leads da Silhouette Experts no Meta Ads e, no LI 35, também no Google Ads.
 
+Versão publicada: https://dashboard-juliana-delamura.vercel.app
+
 ## Abas
 
 - **Resumo Geral**: visão consolidada das três frentes de captação.
