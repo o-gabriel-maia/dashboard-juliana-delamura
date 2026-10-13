@@ -7,7 +7,7 @@ type DateRange = { since: string; until: string };
 // Planilha de resultado da pesquisa do LI 35, aba "Leads C/UTM": uma linha por
 // inscrição, com a data, a resposta "Você já tem Silhouette?" (Sim = TS, Não =
 // NTS) e a UTM de origem. A planilha está com compartilhamento por link, então a
-// leitura não precisa de credencial. Só as colunas E a H são lidas (sem e-mail
+// leitura não precisa de credencial. Só as colunas E a J são lidas (sem e-mail
 // nem telefone).
 const SHEET_ID = "1zcEFVG7Lr9bKlh_pkLiSYYjByI9iyabSNLciQrvg8iM";
 const TAB = "Leads C/UTM";
@@ -16,7 +16,15 @@ const TAB = "Leads C/UTM";
 const PAID_SOURCE = /paid/i;
 // Dentro do tráfego pago, o que é do Google Ads (YouTube); o resto é do Meta Ads.
 const GOOGLE_SOURCE = /(^|[-_])(yt|youtube|google|gads)([-_]|$)/i;
-const DEFAULT_RANGE_DAYS = 30;
+const DEFAULT_RANGE_DAYS = 7;
+// Mesma regra do dashboard: a CDN guarda 5 min e entrega a cópia antiga enquanto
+// busca a nova. A tela pede com `v=` igual à hora da última atualização, então
+// "Atualizar agora" gera uma consulta nova.
+const CACHE_HEADERS = {
+  "Cache-Control": "no-store",
+  "Vercel-CDN-Cache-Control": "s-maxage=300, stale-while-revalidate=172800",
+};
+
 const MAX_RANGE_DAYS = 370;
 
 type Counts = {
@@ -124,7 +132,7 @@ export async function GET(request: Request) {
 
     const url =
       `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv` +
-      `&sheet=${encodeURIComponent(TAB)}&range=E:H`;
+      `&sheet=${encodeURIComponent(TAB)}&range=E:J`;
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("Não foi possível ler a planilha de leads.");
     const table = parseCsv(await res.text());
@@ -133,8 +141,12 @@ export async function GET(request: Request) {
     }
 
     const byDate = new Map<string, Counts>();
+    // Leads do Meta por nome de conjunto (utm medium) e de anúncio (utm content),
+    // para cruzar com o gasto de cada um.
+    const byAdset = new Map<string, { ts: number; nts: number }>();
+    const byAd = new Map<string, { ts: number; nts: number }>();
     let withoutAnswer = 0;
-    for (const [dateBr, answer, source] of table.slice(1)) {
+    for (const [dateBr, answer, source, medium, content] of table.slice(1)) {
       const date = isoDate(dateBr ?? "");
       if (!date) continue;
       const a = (answer ?? "").trim().toLowerCase();
@@ -151,6 +163,17 @@ export async function GET(request: Request) {
       if (paid && GOOGLE_SOURCE.test(source ?? "")) {
         if (isTs) day.tsGoogle++;
         else day.ntsGoogle++;
+      }
+      if (paid && !GOOGLE_SOURCE.test(source ?? "") && inRange(date, range)) {
+        const add = (map: Map<string, { ts: number; nts: number }>, name: string) => {
+          const key = name.trim() || "(sem nome)";
+          const item = map.get(key) ?? { ts: 0, nts: 0 };
+          if (isTs) item.ts++;
+          else item.nts++;
+          map.set(key, item);
+        };
+        add(byAdset, medium ?? "");
+        add(byAd, content ?? "");
       }
       byDate.set(date, day);
     }
@@ -170,7 +193,9 @@ export async function GET(request: Request) {
       previousTotals: totalsOf(previous),
       daily,
       withoutAnswer,
-    });
+      byAdset: [...byAdset].map(([name, v]) => ({ name, ...v })),
+      byAd: [...byAd].map(([name, v]) => ({ name, ...v })),
+    }, { headers: CACHE_HEADERS });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao ler a planilha de leads.";
     return NextResponse.json({ error: message }, { status: 500 });

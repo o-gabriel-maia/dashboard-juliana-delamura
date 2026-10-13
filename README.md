@@ -16,6 +16,8 @@ Campanhas de formulário nativo (`FORM_NATIVO` ou `[FORM]` no nome) ficam sem as
 
 Na aba **Captação LI 35** há também a seção **Leads TS e NTS (planilha)**, que lê a aba `Leads C/UTM` da planilha "[LI35] Resultado da Pesquisa" (compartilhada por link, sem credencial). TS = respondeu "Sim" em "Você já tem Silhouette?", NTS = "Não". Só entram inscrições com `paid` na UTM de origem (tráfego pago): `fb-paid-hot` e `fb-paid-cold` no Meta Ads e `yt-paid-hot` no Google Ads. O custo por lead TS é o investimento do Meta Ads somado ao do Google Ads dividido pelos leads TS da planilha.
 
+O período padrão de todas as abas é **Últimos 7 dias**. Nas abas Live Secreta Quarta e Domingo há um comparativo por live; na aba LI 35, o custo por lead TS por público (conjunto) e por criativo (anúncio), cruzando o gasto do Meta com as UTMs da planilha.
+
 As campanhas entram em cada aba pela tag no nome: campanha nova com a tag aparece sozinha. Entram as ativas e as pausadas que tiveram gasto no período escolhido. O resultado é o mesmo da coluna "Resultados" do Gerenciador de Anúncios (leads por formulário nativo ou pelo pixel).
 
 ## Rodar localmente

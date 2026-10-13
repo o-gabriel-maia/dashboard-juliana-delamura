@@ -133,7 +133,7 @@ const LEAD_INDICATOR =
 // Formulário nativo: `results` vem vazio e os leads estão nesta ação.
 const ACTION_FORM_LEAD = "onsite_conversion.lead_grouped";
 const GRAPH_URL = "https://graph.facebook.com/v21.0";
-const DEFAULT_RANGE_DAYS = 30;
+const DEFAULT_RANGE_DAYS = 7;
 const MAX_RANGE_DAYS = 370;
 
 const ACTION_FIRST_REPLY = "onsite_conversion.messaging_first_reply";
@@ -750,17 +750,36 @@ export async function GET(request: Request) {
     const range = resolveRange(searchParams.get("since"), searchParams.get("until"));
 
     const previous = previousRange(range);
+    // A Meta leva ~10s pra responder, então a CDN da Vercel guarda a resposta por
+    // 5 min e, vencido esse prazo, ainda entrega a cópia antiga (por até 2 dias)
+    // enquanto busca a nova em segundo plano; a tela avisa e pede de novo em seguida.
+    // `fresh=` (botão "Atualizar agora") fura o cache.
+    const cacheHeaders: Record<string, string> = searchParams.has("fresh")
+      ? { "Cache-Control": "no-store" }
+      : {
+          "Cache-Control": "no-store",
+          "Vercel-CDN-Cache-Control": "s-maxage=300, stale-while-revalidate=172800",
+        };
     const account = await resolveAccount();
+
+    // Quebras por idade, gênero, posicionamento e dispositivo: só da aba aberta,
+    // pedidas depois da tela principal para ela não esperar por 16 consultas a mais.
+    const onlyBreakdown = searchParams.get("breakdowns");
+    if (onlyBreakdown) {
+      const group = GROUPS.find((g) => g.key === onlyBreakdown)?.key;
+      if (!group) return NextResponse.json({ error: "Aba desconhecida." }, { status: 400 });
+      const [key, value] = await fetchBreakdowns(account, group, range);
+      return NextResponse.json({ range, resultBreakdowns: { [key]: value } }, { headers: cacheHeaders });
+    }
     const campaigns = account.list;
     const groupKeys = GROUPS.map((g) => g.key);
     const emptyDaily = { total: new Map<string, MetaAgg>(), byCampaign: new Map<string, Map<string, MetaAgg>>() };
 
     // Sem nenhuma campanha com as tags, o filtro `IN []` daria erro na Meta.
     const hasCampaigns = campaigns.length > 0;
-    const [part, groupReachList, breakdowns] = await Promise.all([
+    const [part, groupReachList] = await Promise.all([
       hasCampaigns ? loadAccount(account, range, previous) : null,
       Promise.all(groupKeys.map((group) => fetchGroupReach(account, group, range, previous))),
-      Promise.all(groupKeys.map((group) => fetchBreakdowns(account, group, range))),
     ]);
     const groupReach = new Map(groupReachList);
 
@@ -852,17 +871,6 @@ export async function GET(request: Request) {
       });
     }
 
-    // A Meta leva ~10s pra responder, então a CDN da Vercel guarda a resposta por
-    // 5 min e, vencido esse prazo, ainda entrega a cópia antiga (por até 2 dias)
-    // enquanto busca a nova em segundo plano; a tela avisa e pede de novo em seguida.
-    // `fresh=` (botão "Atualizar agora") fura o cache.
-    const cacheHeaders: Record<string, string> = searchParams.has("fresh")
-      ? { "Cache-Control": "no-store" }
-      : {
-          "Cache-Control": "no-store",
-          "Vercel-CDN-Cache-Control": "s-maxage=300, stale-while-revalidate=172800",
-        };
-
     return NextResponse.json(
       {
         updatedAt: new Date().toISOString(),
@@ -879,7 +887,6 @@ export async function GET(request: Request) {
         },
         dailyChart: buildDailyPoints(daily.total, range),
         dailyByCampaign,
-        resultBreakdowns: Object.fromEntries(breakdowns),
       },
       { headers: cacheHeaders }
     );

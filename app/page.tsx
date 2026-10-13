@@ -176,7 +176,7 @@ function lastDays(days: number): DateRange {
   return { since: toDateStr(since), until: toDateStr(new Date()) };
 }
 
-const DEFAULT_PRESET = "30dias";
+const DEFAULT_PRESET = "7dias";
 
 const DATE_PRESETS: {
   key: string;
@@ -1748,7 +1748,7 @@ async function fetchDashboard(range: DateRange | null, fresh: boolean): Promise<
 
 const STALE_RETRY_MS = 10 * 1000;
 const MAX_STALE_RETRIES = 4;
-const LAST_DATA_KEY = "silhouette-experts-dashboard:ultimos-dados";
+const LAST_DATA_KEY = "silhouette-experts-dashboard:ultimos-dados:7dias";
 
 // Conveniência: guarda a última resposta boa pra tela não ficar vazia se a Meta
 // recusar uma consulta (ex.: limite de requisições).
@@ -1928,8 +1928,38 @@ export default function Home() {
   const activeKind = kindOf(activeCampaign?.name ?? "");
   const activeResult = KINDS[activeKind].result;
   const activeUnit = KINDS[activeKind].unit;
-  // Cópia antiga salva no navegador tinha outro formato: sem quebra pela campanha, não mostra.
-  const breakdowns = activeCampaign ? data?.resultBreakdowns?.[activeCampaign.id] : undefined;
+  // Quebras por idade, gênero, posicionamento e dispositivo: só da aba aberta,
+  // pedidas depois que a tela principal já carregou.
+  const [breakdownData, setBreakdownData] = useState<{
+    group: string;
+    value: NonNullable<DashboardData["resultBreakdowns"]>[string];
+  }>();
+  const breakdownGroup = activeCampaign?.id;
+  const rangeSince = data?.range.since;
+  const rangeUntil = data?.range.until;
+  const updatedAt = data?.updatedAt;
+  useEffect(() => {
+    if (!breakdownGroup || !rangeSince || !rangeUntil) return;
+    let cancelled = false;
+    const params = new URLSearchParams({
+      breakdowns: breakdownGroup,
+      since: rangeSince,
+      until: rangeUntil,
+      v: updatedAt ?? "",
+    });
+    fetch(`/api/dashboard?${params}`)
+      .then((res) => res.json())
+      .then((json) => {
+        const value = json?.resultBreakdowns?.[breakdownGroup];
+        if (!cancelled && value) setBreakdownData({ group: breakdownGroup, value });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [breakdownGroup, rangeSince, rangeUntil, updatedAt]);
+  const breakdowns =
+    breakdownData && breakdownData.group === breakdownGroup ? breakdownData.value : undefined;
 
   const periodLabel = data
     ? data.range.since === data.range.until
@@ -2423,6 +2453,14 @@ export default function Home() {
               showPreviewLink
               videoMetrics={activeKind === "li35"}
             />
+            {(activeKind === "lsq" || activeKind === "lsd") && (
+              <LivesComparison
+                title={`Comparativo das Lives de ${activeKind === "lsq" ? "Quarta" : "Domingo"}`}
+                rows={(data.levels.realCampaigns ?? []).filter(
+                  (r) => r.campaignId === activeCampaign.id,
+                )}
+              />
+            )}
             {breakdowns?.age && breakdowns.age.length > 0 && activeCampaign.conversations > 0 && (
               <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
                 <DonutChart
@@ -2462,6 +2500,8 @@ export default function Home() {
                 meta={activeCampaign}
                 metaPrevious={data.previousByCampaign[activeCampaign.id]}
                 metaDaily={data.dailyByCampaign[activeCampaign.id] ?? []}
+                metaAdsets={data.levels.adsets.filter((r) => r.campaignId === activeCampaign.id)}
+                metaAds={data.levels.ads.filter((r) => r.campaignId === activeCampaign.id)}
               />
             )}
           </div>
@@ -2537,6 +2577,8 @@ type LeadsData = {
   previousTotals: LeadsCounts;
   daily: ({ date: string } & LeadsCounts)[];
   withoutAnswer: number;
+  byAdset: { name: string; ts: number; nts: number }[];
+  byAd: { name: string; ts: number; nts: number }[];
 };
 
 type TsNtsDay = {
@@ -2637,6 +2679,233 @@ function TsNtsDailyTable({ rows }: { rows: TsNtsDay[] }) {
   );
 }
 
+// Custo por lead TS de cada conjunto (público) ou anúncio (criativo): o gasto
+// vem do Meta e os leads TS e NTS da planilha, cruzados pelo nome na UTM. Nomes
+// iguais em campanhas diferentes são somados.
+function TsByNameTable({
+  title,
+  note,
+  nameLabel,
+  metaRows,
+  sheetRows,
+}: {
+  title: string;
+  note: string;
+  nameLabel: string;
+  metaRows: Row[];
+  sheetRows: { name: string; ts: number; nts: number }[];
+}) {
+  const meta = new Map<string, { spend: number; leads: number }>();
+  for (const r of metaRows) {
+    const item = meta.get(r.name) ?? { spend: 0, leads: 0 };
+    item.spend += r.spend;
+    item.leads += r.conversations;
+    meta.set(r.name, item);
+  }
+  const sheet = new Map(sheetRows.map((r) => [r.name, r]));
+  const names = new Set([...meta.keys(), ...sheet.keys()]);
+  const lines = [...names]
+    .map((name) => {
+      const m = meta.get(name) ?? { spend: 0, leads: 0 };
+      const sh = sheet.get(name) ?? { ts: 0, nts: 0 };
+      return {
+        name,
+        spend: m.spend,
+        metaLeads: m.leads,
+        ts: sh.ts,
+        nts: sh.nts,
+        inMeta: meta.has(name),
+        cplTs: sh.ts > 0 && m.spend > 0 ? m.spend / sh.ts : null,
+        cplAll: sh.ts + sh.nts > 0 && m.spend > 0 ? m.spend / (sh.ts + sh.nts) : null,
+      };
+    })
+    .filter((l) => l.spend > 0 || l.ts + l.nts > 0)
+    .sort((a, b) => b.spend - a.spend || b.ts - a.ts);
+  const total = lines.reduce(
+    (a, l) => ({
+      spend: a.spend + l.spend,
+      metaLeads: a.metaLeads + l.metaLeads,
+      ts: a.ts + l.ts,
+      nts: a.nts + l.nts,
+    }),
+    { spend: 0, metaLeads: 0, ts: 0, nts: 0 },
+  );
+  const costs = lines.map((l) => l.cplTs).filter((v): v is number => v !== null);
+  const head = "px-2.5 py-2.5 text-center";
+  const cell = "px-2.5 py-2.5 text-center";
+  if (lines.length === 0) return null;
+  return (
+    <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        {title}
+        <ChartNote note={note} />
+      </h3>
+      <div className="max-h-[520px] overflow-auto">
+        <table className="w-full text-sm" style={{ minWidth: 900 }}>
+          <thead className="sticky top-0 z-10 bg-gray-50">
+            <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
+              <th className="px-2.5 py-2.5 text-left">{nameLabel}</th>
+              <th className={head}>Investimento Meta</th>
+              <th className={head}>Leads (Meta)</th>
+              <th className={head}>Leads TS</th>
+              <th className={head}>Leads NTS</th>
+              <th className={head}>% de Leads TS</th>
+              <th className={head}>Custo por Lead TS</th>
+              <th className={head}>Custo por Lead (TS + NTS)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l) => (
+              <tr key={l.name} className="border-b border-gray-100">
+                <td className="px-2.5 py-2.5 text-left text-gray-900">
+                  {l.name}
+                  {!l.inMeta && <span className="ml-2 text-xs text-gray-400">(sem gasto no Meta)</span>}
+                </td>
+                <td className={cell}>{formatBRL(l.spend)}</td>
+                <td className={cell}>{formatNumber(l.metaLeads)}</td>
+                <td className={`${cell} font-semibold text-gray-900`}>{formatNumber(l.ts)}</td>
+                <td className={cell}>{formatNumber(l.nts)}</td>
+                <td className={cell}>
+                  {formatRate(l.ts + l.nts > 0 ? (l.ts / (l.ts + l.nts)) * 100 : null)}
+                </td>
+                <td className={cell} style={{ background: heatColor(l.cplTs, costs) }}>
+                  {formatBRL(l.cplTs)}
+                </td>
+                <td className={cell}>{formatBRL(l.cplAll)}</td>
+              </tr>
+            ))}
+            <tr className="sticky bottom-0 bg-gray-50 font-semibold">
+              <td className="px-2.5 py-2.5 text-left">Total</td>
+              <td className={cell}>{formatBRL(total.spend)}</td>
+              <td className={cell}>{formatNumber(total.metaLeads)}</td>
+              <td className={cell}>{formatNumber(total.ts)}</td>
+              <td className={cell}>{formatNumber(total.nts)}</td>
+              <td className={cell}>
+                {formatRate(total.ts + total.nts > 0 ? (total.ts / (total.ts + total.nts)) * 100 : null)}
+              </td>
+              <td className={cell}>{formatBRL(total.ts > 0 ? total.spend / total.ts : null)}</td>
+              <td className={cell}>
+                {formatBRL(total.ts + total.nts > 0 ? total.spend / (total.ts + total.nts) : null)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Comparativo entre as lives de uma aba (quarta ou domingo): uma linha por live,
+// somando as campanhas dela (formulário nativo e página).
+function LivesComparison({ rows, title }: { rows: Row[]; title: string }) {
+  const lives = new Map<
+    string,
+    {
+      code: string;
+      number: number;
+      date: string;
+      campaigns: number;
+      spend: number;
+      leads: number;
+      impressions: number;
+      clicks: number;
+      pageViews: number;
+      pageLeads: number;
+      active: boolean;
+    }
+  >();
+  for (const r of rows) {
+    const m = /^\[LS(\d+)_([QD])/i.exec(r.name.trim());
+    if (!m) continue;
+    const code = `LS${m[1]}_${m[2].toUpperCase()}`;
+    const date = /(\d{2}\/\d{2}\/\d{2})\s*$/.exec(r.name)?.[1] ?? "";
+    const live = lives.get(code) ?? {
+      code,
+      number: Number(m[1]),
+      date,
+      campaigns: 0,
+      spend: 0,
+      leads: 0,
+      impressions: 0,
+      clicks: 0,
+      pageViews: 0,
+      pageLeads: 0,
+      active: false,
+    };
+    live.campaigns += 1;
+    live.spend += r.spend;
+    live.leads += r.conversations;
+    live.impressions += r.impressions;
+    live.clicks += r.linkClicks;
+    live.pageViews += r.landingPageViews;
+    live.pageLeads += r.pageConversions;
+    live.active = live.active || r.status === "Ativo";
+    if (!live.date) live.date = date;
+    lives.set(code, live);
+  }
+  const lines = [...lives.values()].sort((a, b) => b.number - a.number);
+  if (lines.length === 0) return null;
+  const costs = lines
+    .map((l) => (l.leads > 0 ? l.spend / l.leads : null))
+    .filter((v): v is number => v !== null);
+  const head = "px-2.5 py-2.5 text-center";
+  const cell = "px-2.5 py-2.5 text-center";
+  return (
+    <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        {title}
+        <ChartNote note="(uma linha por live, somando as campanhas dela; custo por lead mais barato em destaque)" />
+      </h3>
+      <div className="max-h-[520px] overflow-auto">
+        <table className="w-full text-sm" style={{ minWidth: 900 }}>
+          <thead className="sticky top-0 z-10 bg-gray-50">
+            <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
+              <th className="px-2.5 py-2.5 text-left">Live</th>
+              <th className={head}>Data</th>
+              <th className={head}>Campanhas</th>
+              <th className={head}>Valor Investido</th>
+              <th className={head}>Leads</th>
+              <th className={head}>Custo por Lead</th>
+              <th className={head}>Impressões</th>
+              <th className={head}>Cliques</th>
+              <th className={head}>CTR</th>
+              <th className={head}>Taxa de Conversão da Página</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l) => {
+              const cost = l.leads > 0 ? l.spend / l.leads : null;
+              return (
+                <tr key={l.code} className="border-b border-gray-100">
+                  <td className="px-2.5 py-2.5 text-left text-gray-900">
+                    {l.code}
+                    {l.active && <span className="ml-2 text-xs font-medium text-emerald-600">no ar</span>}
+                  </td>
+                  <td className={cell}>{l.date || "—"}</td>
+                  <td className={cell}>{l.campaigns}</td>
+                  <td className={cell}>{formatBRL(l.spend)}</td>
+                  <td className={`${cell} font-semibold text-gray-900`}>{formatNumber(l.leads)}</td>
+                  <td className={cell} style={{ background: heatColor(cost, costs) }}>
+                    {formatBRL(cost)}
+                  </td>
+                  <td className={cell}>{formatNumber(l.impressions)}</td>
+                  <td className={cell}>{formatNumber(l.clicks)}</td>
+                  <td className={cell}>
+                    {formatRate(l.impressions > 0 ? (l.clicks / l.impressions) * 100 : null)}
+                  </td>
+                  <td className={cell}>
+                    {formatRate(l.pageViews > 0 ? (l.pageLeads / l.pageViews) * 100 : null)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // Leads da planilha do LI 35 (TS = já tem Silhouette, NTS = ainda não tem) que
 // vieram de tráfego pago, com o custo por lead calculado sobre o investimento
 // somado do Meta Ads e do Google Ads.
@@ -2649,6 +2918,8 @@ function TsLeadsSection({
   googleSpend,
   metaDaily,
   googleDaily,
+  metaAdsets,
+  metaAds,
 }: {
   range: DateRange;
   refreshKey: string;
@@ -2658,6 +2929,8 @@ function TsLeadsSection({
   googleSpend: number;
   metaDaily: DailyPoint[];
   googleDaily: DailyPoint[];
+  metaAdsets: Row[];
+  metaAds: Row[];
 }) {
   const key = `${range.since}:${range.until}:${refreshKey}`;
   const [result, setResult] = useState<{ key: string; data?: LeadsData; error?: string }>();
@@ -2665,7 +2938,7 @@ function TsLeadsSection({
 
   useEffect(() => {
     let cancelled = false;
-    const params = new URLSearchParams({ since: range.since, until: range.until });
+    const params = new URLSearchParams({ since: range.since, until: range.until, v: refreshKey });
     fetch(`/api/leads?${params}`)
       .then(async (res) => {
         const json = await res.json();
@@ -2678,7 +2951,7 @@ function TsLeadsSection({
     return () => {
       cancelled = true;
     };
-  }, [key, range.since, range.until]);
+  }, [key, range.since, range.until, refreshKey]);
 
   const fresh = result?.key === key ? result : undefined;
   const data = fresh?.data ?? result?.data;
@@ -2969,6 +3242,21 @@ function TsLeadsSection({
           </div>
 
           <TsNtsDailyTable rows={days} />
+
+          <TsByNameTable
+            title="Custo por Lead TS por Público (conjunto)"
+            note="(gasto do Meta ÷ leads TS da planilha com a UTM do conjunto; nomes iguais em campanhas diferentes são somados)"
+            nameLabel="Conjunto"
+            metaRows={metaAdsets}
+            sheetRows={data.byAdset ?? []}
+          />
+          <TsByNameTable
+            title="Custo por Lead TS por Criativo (anúncio)"
+            note="(gasto do Meta ÷ leads TS da planilha com a UTM do anúncio; nomes iguais em conjuntos diferentes são somados)"
+            nameLabel="Anúncio"
+            metaRows={metaAds}
+            sheetRows={data.byAd ?? []}
+          />
         </div>
       )}
     </div>
@@ -2983,19 +3271,23 @@ function GoogleAdsSection({
   meta,
   metaPrevious,
   metaDaily,
+  metaAdsets,
+  metaAds,
 }: {
   range: DateRange;
   refreshKey: string;
   meta: Metrics;
   metaPrevious?: Metrics;
   metaDaily: DailyPoint[];
+  metaAdsets: Row[];
+  metaAds: Row[];
 }) {
   const key = `${range.since}:${range.until}:${refreshKey}`;
   const [result, setResult] = useState<{ key: string; data?: GoogleData; error?: string }>();
 
   useEffect(() => {
     let cancelled = false;
-    const params = new URLSearchParams({ since: range.since, until: range.until });
+    const params = new URLSearchParams({ since: range.since, until: range.until, v: refreshKey });
     fetch(`/api/google?${params}`)
       .then(async (res) => {
         const json = await res.json();
@@ -3008,7 +3300,7 @@ function GoogleAdsSection({
     return () => {
       cancelled = true;
     };
-  }, [key, range.since, range.until]);
+  }, [key, range.since, range.until, refreshKey]);
 
   const fresh = result?.key === key ? result : undefined;
   const data = fresh?.data ?? result?.data;
@@ -3196,6 +3488,8 @@ function GoogleAdsSection({
         googleSpend={data?.totals.spend ?? 0}
         metaDaily={metaDaily}
         googleDaily={data?.dailyChart ?? []}
+        metaAdsets={metaAdsets}
+        metaAds={metaAds}
         previousSpend={
           metaPrevious ? metaPrevious.spend + (data?.previousTotals.spend ?? 0) : null
         }

@@ -10,7 +10,7 @@ const LOGIN_CUSTOMER_ID = "7432481101";
 // Entram as campanhas cujo nome tem todos esses trechos (captação do LI 35).
 const CAMPAIGN_TAGS = ["LI35"];
 const API_URL = `https://googleads.googleapis.com/v25/customers/${CUSTOMER_ID}/googleAds:searchStream`;
-const DEFAULT_RANGE_DAYS = 30;
+const DEFAULT_RANGE_DAYS = 7;
 const MAX_RANGE_DAYS = 370;
 const METRICS = "metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions";
 
