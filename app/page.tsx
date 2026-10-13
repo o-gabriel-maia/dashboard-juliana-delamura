@@ -2965,17 +2965,24 @@ function TsLeadsSection({
           <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 className="mb-4 text-sm font-semibold text-gray-900">
               Investimento (Meta e Google), Leads TS e Leads NTS por Dia
-              <ChartNote note="(barras: investimento de cada plataforma; linhas: leads de tráfego pago)" />
+              <ChartNote note="(barras: investimento de cada plataforma; linhas: leads de tráfego pago e custo por lead, que aparece ao passar o mouse)" />
             </h3>
             <ResponsiveContainer width="100%" height={300}>
               <ComposedChart
-                data={days.map((d) => ({
-                  date: d.date,
-                  metaSpend: d.metaSpend,
-                  googleSpend: d.googleSpend,
-                  ts: d.tsMeta + d.tsGoogle,
-                  nts: d.ntsMeta + d.ntsGoogle,
-                }))}
+                data={days.map((d) => {
+                  const ts = d.tsMeta + d.tsGoogle;
+                  const nts = d.ntsMeta + d.ntsGoogle;
+                  const spend = d.metaSpend + d.googleSpend;
+                  return {
+                    date: d.date,
+                    metaSpend: d.metaSpend,
+                    googleSpend: d.googleSpend,
+                    ts,
+                    nts,
+                    costTs: ts > 0 ? spend / ts : null,
+                    costNts: nts > 0 ? spend / nts : null,
+                  };
+                })}
                 margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
               >
                 <CartesianGrid stroke="#e5e7eb" vertical={false} />
@@ -3007,11 +3014,14 @@ function TsLeadsSection({
                   width={48}
                   hide={narrow}
                 />
+                <YAxis yAxisId="cost" orientation="right" width={0} domain={[0, "auto"]} hide />
                 <Tooltip
                   content={
                     <ChartTooltip
                       valueFormatter={(v, name) =>
-                        name?.startsWith("Investimento") ? formatBRL(v) : formatNumber(v)
+                        name?.startsWith("Investimento") || name?.startsWith("Custo")
+                          ? formatBRL(v)
+                          : formatNumber(v)
                       }
                     />
                   }
@@ -3051,6 +3061,28 @@ function TsLeadsSection({
                   stroke="#f59e0b"
                   strokeWidth={2}
                   dot={{ r: 3, fill: "#f59e0b", stroke: "#ffffff", strokeWidth: 2 }}
+                />
+                <Line
+                  yAxisId="cost"
+                  type="monotone"
+                  dataKey="costTs"
+                  name="Custo por Lead TS"
+                  stroke="#7c3aed"
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                  dot={{ r: 3, fill: "#7c3aed", stroke: "#ffffff", strokeWidth: 2 }}
+                  connectNulls
+                />
+                <Line
+                  yAxisId="cost"
+                  type="monotone"
+                  dataKey="costNts"
+                  name="Custo por Lead NTS"
+                  stroke="#db2777"
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                  dot={{ r: 3, fill: "#db2777", stroke: "#ffffff", strokeWidth: 2 }}
+                  connectNulls
                 />
               </ComposedChart>
             </ResponsiveContainer>
