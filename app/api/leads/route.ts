@@ -11,8 +11,8 @@ type DateRange = { since: string; until: string };
 // nem telefone).
 const SHEET_ID = "1zcEFVG7Lr9bKlh_pkLiSYYjByI9iyabSNLciQrvg8iM";
 const TAB = "Leads C/UTM";
-// Origem de tráfego pago: o nome da UTM de origem tem "paid" (fb-paid-hot,
-// fb-paid-cold e o que for criado para o Google Ads com o mesmo padrão).
+// Origem de tráfego pago: o nome da UTM de origem tem "paid". Meta Ads usa
+// fb-paid-hot e fb-paid-cold; o Google Ads (YouTube) usa yt-paid-hot.
 const PAID_SOURCE = /paid/i;
 const DEFAULT_RANGE_DAYS = 30;
 const MAX_RANGE_DAYS = 370;
