@@ -28,7 +28,6 @@ import {
 } from "recharts";
 import {
   LayoutDashboard,
-  Radio,
   CalendarDays,
   Tag,
   Megaphone,
@@ -330,7 +329,7 @@ const KINDS: Record<
 > = {
   lsq: {
     tab: "Live Secreta Quarta",
-    icon: Radio,
+    icon: CalendarDays,
     result: "Leads",
     cost: "Custo por Lead",
     unit: "leads",
