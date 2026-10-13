@@ -29,6 +29,7 @@ import {
 import {
   LayoutDashboard,
   CalendarDays,
+  FileSpreadsheet,
   Tag,
   Megaphone,
   ChevronLeft,
@@ -486,6 +487,18 @@ const METRIC_HELP: Record<string, string> = {
     "Quantas reproduções do vídeo chegaram a pelo menos 75% da duração. Só vale para vídeo; imagem fica zerada.",
   "Visualizações 100%":
     "Quantas reproduções do vídeo foram assistidas até o fim. Só vale para vídeo; imagem fica zerada.",
+  "Investimento (Meta + Google)":
+    "Soma do valor investido nas campanhas do LI 35 no Meta Ads e no Google Ads no período.",
+  "Leads TS":
+    "Inscrições da planilha em que a pessoa respondeu que já tem a Silhouette (TS = Tem Silhouette), vindas de tráfego pago.",
+  "Leads NTS":
+    "Inscrições da planilha em que a pessoa respondeu que ainda não tem a Silhouette (NTS = Não Tem Silhouette), vindas de tráfego pago.",
+  "Custo por Lead TS":
+    "Investimento (Meta + Google) dividido pelos leads TS da planilha vindos de tráfego pago. Quanto menor, melhor.",
+  "Custo por Lead (TS + NTS)":
+    "Investimento (Meta + Google) dividido por todos os leads da planilha vindos de tráfego pago, com ou sem Silhouette.",
+  "% de Leads TS":
+    "De cada 100 leads de tráfego pago na planilha, quantos já têm a Silhouette (TS).",
   Cliques: "Cliques no link ou no botão do anúncio.",
   CPC: "Custo médio de cada clique no link.",
   Status: "Se a campanha, o conjunto ou o anúncio está rodando ou pausado.",
@@ -2443,7 +2456,12 @@ export default function Home() {
               </div>
             )}
             {activeKind === "li35" && (
-              <GoogleAdsSection range={data.range} refreshKey={data.updatedAt} meta={activeCampaign} />
+              <GoogleAdsSection
+                range={data.range}
+                refreshKey={data.updatedAt}
+                meta={activeCampaign}
+                metaPrevious={data.previousByCampaign[activeCampaign.id]}
+              />
             )}
           </div>
         )}
@@ -2503,16 +2521,216 @@ function SectionTitle({
   );
 }
 
+type LeadsCounts = { tsPaid: number; ntsPaid: number; tsOther: number; ntsOther: number };
+type LeadsData = {
+  range: DateRange;
+  previousRange: DateRange;
+  totals: LeadsCounts;
+  previousTotals: LeadsCounts;
+  daily: ({ date: string } & LeadsCounts)[];
+  withoutAnswer: number;
+};
+
+// Leads da planilha do LI 35 (TS = já tem Silhouette, NTS = ainda não tem) que
+// vieram de tráfego pago, com o custo por lead calculado sobre o investimento
+// somado do Meta Ads e do Google Ads.
+function TsLeadsSection({
+  range,
+  refreshKey,
+  spend,
+  previousSpend,
+}: {
+  range: DateRange;
+  refreshKey: string;
+  spend: number;
+  previousSpend: number | null;
+}) {
+  const key = `${range.since}:${range.until}:${refreshKey}`;
+  const [result, setResult] = useState<{ key: string; data?: LeadsData; error?: string }>();
+  const narrow = useIsNarrow();
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams({ since: range.since, until: range.until });
+    fetch(`/api/leads?${params}`)
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok || json.error) throw new Error(json.error || "Erro ao ler a planilha de leads.");
+        if (!cancelled) setResult({ key, data: json as LeadsData });
+      })
+      .catch((e) => {
+        if (!cancelled) setResult({ key, error: friendlyError(e) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [key, range.since, range.until]);
+
+  const fresh = result?.key === key ? result : undefined;
+  const data = fresh?.data ?? result?.data;
+  const loading = !fresh && !!data;
+  const error = fresh?.error;
+
+  const ratio = (a: number, b: number) => (b > 0 ? a / b : null);
+  const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : null);
+  const cur = data?.totals;
+  const prev = data?.previousTotals;
+  const prevSpend = previousSpend !== null && previousSpend > 0 ? previousSpend : null;
+
+  type Card = {
+    label: string;
+    trend: Trend;
+    current: number | null;
+    previous: number | null;
+    format: (v: number | null) => string;
+  };
+  const cards: Card[] = cur && prev
+    ? [
+        {
+          label: "Investimento (Meta + Google)",
+          trend: "up",
+          current: spend,
+          previous: prevSpend,
+          format: formatBRL,
+        },
+        {
+          label: "Leads TS",
+          trend: "up",
+          current: cur.tsPaid,
+          previous: prev.tsPaid,
+          format: formatNumber,
+        },
+        {
+          label: "Custo por Lead TS",
+          trend: "down",
+          current: ratio(spend, cur.tsPaid),
+          previous: prevSpend !== null ? ratio(prevSpend, prev.tsPaid) : null,
+          format: formatBRL,
+        },
+        {
+          label: "Leads NTS",
+          trend: "neutral",
+          current: cur.ntsPaid,
+          previous: prev.ntsPaid,
+          format: formatNumber,
+        },
+        {
+          label: "% de Leads TS",
+          trend: "up",
+          current: pct(cur.tsPaid, cur.tsPaid + cur.ntsPaid),
+          previous: pct(prev.tsPaid, prev.tsPaid + prev.ntsPaid),
+          format: formatRate,
+        },
+        {
+          label: "Custo por Lead (TS + NTS)",
+          trend: "down",
+          current: ratio(spend, cur.tsPaid + cur.ntsPaid),
+          previous: prevSpend !== null ? ratio(prevSpend, prev.tsPaid + prev.ntsPaid) : null,
+          format: formatBRL,
+        },
+      ]
+    : [];
+
+  return (
+    <div>
+      <SectionTitle
+        icon={<FileSpreadsheet size={26} className="text-emerald-600" />}
+        note="Inscrições da planilha do LI 35 que vieram de tráfego pago, separadas em TS (já tem Silhouette) e NTS (ainda não tem). O custo por lead usa o investimento do Meta Ads e do Google Ads."
+      >
+        Leads TS e NTS (planilha)
+      </SectionTitle>
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {!data && !error && <div className="text-gray-500">Carregando a planilha de leads…</div>}
+      {data && cur && (
+        <div className={`transition-opacity duration-300 ${loading ? "opacity-40" : ""}`}>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {cards.map((card) => (
+              <Kpi
+                key={card.label}
+                label={card.label}
+                value={card.format(card.current)}
+                current={card.current}
+                previous={card.previous}
+                previousLabel={card.format(card.previous)}
+                trend={card.trend}
+              />
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-gray-500">
+            Variação em relação ao período anterior ({formatFullDate(data.previousRange.since)} a{" "}
+            {formatFullDate(data.previousRange.until)}). Ficam de fora do custo por lead{" "}
+            {formatNumber(cur.tsOther + cur.ntsOther)} inscrições de outras origens (e-mail,
+            WhatsApp ou sem UTM) no período.
+          </p>
+
+          <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-sm font-semibold text-gray-900">
+              Leads TS e NTS por Dia
+              <ChartNote note="(só tráfego pago, pela data de inscrição na planilha)" />
+            </h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={data.daily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="#e5e7eb" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={formatChartDate}
+                  tick={AXIS_TICK}
+                  axisLine={AXIS_LINE}
+                  tickLine={false}
+                  minTickGap={16}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tick={AXIS_TICK}
+                  axisLine={AXIS_LINE}
+                  tickLine={false}
+                  tickFormatter={(v: number) => formatNumber(v)}
+                  width={48}
+                  hide={narrow}
+                />
+                <Tooltip content={<ChartTooltip valueFormatter={(v) => formatNumber(v)} />} />
+                <Legend wrapperStyle={{ fontSize: 12, color: "#6b7280" }} />
+                <Line
+                  type="monotone"
+                  dataKey="tsPaid"
+                  name="Leads TS"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: "#2563eb", stroke: "#ffffff", strokeWidth: 2 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="ntsPaid"
+                  name="Leads NTS"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: "#f59e0b", stroke: "#ffffff", strokeWidth: 2 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Parte do Google Ads da aba de captação. Segue o mesmo período da parte da
 // Meta e busca de novo sempre que o dashboard é atualizado (`refreshKey`).
 function GoogleAdsSection({
   range,
   refreshKey,
   meta,
+  metaPrevious,
 }: {
   range: DateRange;
   refreshKey: string;
   meta: Metrics;
+  metaPrevious?: Metrics;
 }) {
   const key = `${range.since}:${range.until}:${refreshKey}`;
   const [result, setResult] = useState<{ key: string; data?: GoogleData; error?: string }>();
@@ -2711,6 +2929,15 @@ function GoogleAdsSection({
           </div>
         </div>
       )}
+
+      <TsLeadsSection
+        range={range}
+        refreshKey={refreshKey}
+        spend={meta.spend + (data?.totals.spend ?? 0)}
+        previousSpend={
+          metaPrevious ? metaPrevious.spend + (data?.previousTotals.spend ?? 0) : null
+        }
+      />
     </div>
   );
 }
