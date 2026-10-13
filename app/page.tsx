@@ -29,6 +29,7 @@ import {
 import {
   LayoutDashboard,
   Radio,
+  CalendarDays,
   Tag,
   Megaphone,
   ChevronLeft,
@@ -312,7 +313,7 @@ type NavIcon = ComponentType<{ size?: number; strokeWidth?: number }>;
 // Logos de marca não existem no lucide-react, então são SVGs próprios.
 // Cada aba é um produto, com seu "resultado" (o campo `conversations` dos dados
 // guarda esse resultado: leads ou compras) e seus textos.
-type Kind = "ls" | "promo" | "li35";
+type Kind = "lsq" | "lsd" | "promo" | "li35";
 
 const KINDS: Record<
   Kind,
@@ -327,15 +328,25 @@ const KINDS: Record<
     description: string;
   }
 > = {
-  ls: {
-    tab: "Captação Live Secreta",
+  lsq: {
+    tab: "Live Secreta Quarta",
     icon: Radio,
     result: "Leads",
     cost: "Custo por Lead",
     unit: "leads",
     article: "os",
     description:
-      "Captação de leads para as Lives Secretas: campanhas do Meta Ads (formulário nativo e página de inscrição).",
+      "Captação de leads para as Lives Secretas de quarta (campanhas com código LS…_Q): formulário nativo e página de inscrição, no Meta Ads.",
+  },
+  lsd: {
+    tab: "Live Secreta Domingo",
+    icon: CalendarDays,
+    result: "Leads",
+    cost: "Custo por Lead",
+    unit: "leads",
+    article: "os",
+    description:
+      "Captação de leads para as Lives Secretas de domingo (campanhas com código LS…_D): formulário nativo e página de inscrição, no Meta Ads.",
   },
   promo: {
     tab: "Captação Promo Diária",
@@ -359,27 +370,29 @@ const KINDS: Record<
   },
 };
 // Todas as abas são de captação: os resumos somam os leads delas.
-const LEAD_KIND: Kind = "ls";
+const LEAD_KIND: Kind = "lsq";
 const isLeadKind = (kind: Kind) => kind in KINDS;
 
 // O servidor manda uma linha por produto, com o nome da aba.
 function kindOf(name: string): Kind {
+  if (name === KINDS.lsd.tab) return "lsd";
   if (name === KINDS.promo.tab) return "promo";
   if (name === KINDS.li35.tab) return "li35";
-  return "ls";
+  return "lsq";
 }
 
 // O dashboard tem um perfil só; o menu não mostra grupo nem resumo de loja.
 const STORES = ["Juliana Delamura"] as const;
 type Store = (typeof STORES)[number];
 const MULTI_STORE = (STORES as readonly string[]).length > 1;
-const KIND_ORDER: Kind[] = ["ls", "promo", "li35"];
+const KIND_ORDER: Kind[] = ["lsq", "lsd", "promo", "li35"];
 const STORE_COLORS: Record<Store, string> = {
   "Juliana Delamura": "#2563eb",
 };
 // Cor fixa de cada produto nas roscas e na tabela do Resumo Geral.
 const KIND_COLORS: Record<Kind, string> = {
-  ls: "#2563eb",
+  lsq: "#2563eb",
+  lsd: "#0891b2",
   promo: "#f59e0b",
   li35: "#7c3aed",
 };
@@ -2255,7 +2268,7 @@ export default function Home() {
           <div>
             <PanelHeader
               title="Resumo Geral"
-              description="Visão consolidada das campanhas de captação da Live Secreta, da Promo Diária e do LI 35 no Meta Ads."
+              description="Visão consolidada das campanhas de captação das Lives Secretas de quarta e de domingo, da Promo Diária e do LI 35 no Meta Ads."
               {...headerProps}
             />
 
@@ -2267,7 +2280,7 @@ export default function Home() {
                   alcançaram <b className="text-gray-900">{formatNumber(data.totals.reach)}</b>{" "}
                   pessoas, com{" "}
                   <b className="text-gray-900">{formatNumber(data.totals.impressions)}</b>{" "}
-                  impressões. As campanhas de captação (Live Secreta, Promo Diária e LI 35) geraram{" "}
+                  impressões. As campanhas de captação (Live Secreta de quarta e de domingo, Promo Diária e LI 35) geraram{" "}
                   <b className="text-gray-900">{formatNumber(resumoTotals.conversations)}</b>{" "}
                   leads, a{" "}
                   <b className="text-gray-900">{formatBRL(resumoTotals.costPerConversation)}</b> por

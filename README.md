@@ -7,7 +7,8 @@ Versão publicada: https://dashboard-juliana-delamura.vercel.app
 ## Abas
 
 - **Resumo Geral**: visão consolidada das três frentes de captação.
-- **Captação Live Secreta**: campanhas com `LIVE_SECRETA` no nome (só Meta Ads). Resultado: leads.
+- **Live Secreta Quarta**: campanhas com `LIVE_SECRETA` no nome e código `[LS###_Q…]` (só Meta Ads). Resultado: leads.
+- **Live Secreta Domingo**: campanhas com `LIVE_SECRETA` no nome e código `[LS###_D…]` (só Meta Ads). Resultado: leads.
 - **Captação Promo Diária**: campanhas com `PROMO_DIARIA` no nome e a campanha `[LOJA] [FORM] Promo Diária` (só Meta Ads). Resultado: leads.
 - **Captação LI 35**: campanhas com `[LI35]` no nome. Meta Ads primeiro e Google Ads depois, com um total das duas plataformas no fim.
 

@@ -87,7 +87,7 @@ type DateRange = { since: string; until: string };
 // sozinha. O "resultado" (campo `conversations`) é o que a Meta mostra na
 // coluna Resultados do Gerenciador: leads (formulário nativo ou pixel). A parte
 // do Google Ads do LI 35 vem de /api/google.
-type GroupKey = "ls" | "promo" | "li35";
+type GroupKey = "lsq" | "lsd" | "promo" | "li35";
 const AD_ACCOUNT_ID = "519177155682126"; // Silhouette Experts
 // `search` são os trechos pedidos à Meta; `prefix`, quando existe, confere o
 // começo do nome no lugar das tags.
@@ -100,7 +100,10 @@ const GROUPS: {
   prefix?: RegExp;
   names?: string[];
 }[] = [
-  { key: "ls", name: "Captação Live Secreta", tags: ["LIVE_SECRETA"] },
+  // Live Secreta: o código no começo do nome diz o dia, Q = quarta e D = domingo
+  // (ex.: [LS203_Q...] e [LS204_D...]).
+  { key: "lsq", name: "Live Secreta Quarta", tags: ["LIVE_SECRETA"], prefix: /^\[LS\d+_Q/ },
+  { key: "lsd", name: "Live Secreta Domingo", tags: ["LIVE_SECRETA"], prefix: /^\[LS\d+_D/ },
   {
     key: "promo",
     name: "Captação Promo Diária",
@@ -573,7 +576,7 @@ async function resolveAccount(): Promise<Account> {
     id: AD_ACCOUNT_ID,
     campaigns: {},
     formCampaigns: {},
-    stores: { ls: [], promo: [], li35: [] },
+    stores: { lsq: [], lsd: [], promo: [], li35: [] },
     list: [],
   };
   const searchOf = (group: (typeof GROUPS)[number]) =>
