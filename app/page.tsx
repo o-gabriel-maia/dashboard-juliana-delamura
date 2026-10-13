@@ -2691,28 +2691,34 @@ function TsByNameTable({
   nameLabel,
   metaRows,
   sheetRows,
+  showPreview,
 }: {
   title: string;
   note: string;
   nameLabel: string;
   metaRows: Row[];
   sheetRows: { name: string; ts: number; nts: number }[];
+  // Miniatura do anúncio (o de maior gasto entre os de mesmo nome).
+  showPreview?: boolean;
 }) {
-  const meta = new Map<string, { spend: number; leads: number }>();
+  const meta = new Map<string, { spend: number; leads: number; preview?: Row }>();
   for (const r of metaRows) {
     const item = meta.get(r.name) ?? { spend: 0, leads: 0 };
     item.spend += r.spend;
     item.leads += r.conversations;
+    if (!item.preview || r.spend > item.preview.spend) item.preview = r;
     meta.set(r.name, item);
   }
-  const sheet = new Map(sheetRows.map((r) => [r.name, r]));
+  // UTM que não foi substituída ({{ad.name}}, {{adset.name}}...) não vale: fica de fora.
+  const sheet = new Map(sheetRows.filter((r) => !/[{}]/.test(r.name)).map((r) => [r.name, r]));
   const names = new Set([...meta.keys(), ...sheet.keys()]);
   const lines = [...names]
     .map((name) => {
-      const m = meta.get(name) ?? { spend: 0, leads: 0 };
+      const m = meta.get(name) ?? { spend: 0, leads: 0, preview: undefined };
       const sh = sheet.get(name) ?? { ts: 0, nts: 0 };
       return {
         name,
+        preview: m.preview,
         spend: m.spend,
         metaLeads: m.leads,
         ts: sh.ts,
@@ -2748,6 +2754,7 @@ function TsByNameTable({
           <thead className="sticky top-0 z-10 bg-gray-50">
             <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
               <th className="px-2.5 py-2.5 text-left">{nameLabel}</th>
+              {showPreview && <th className={head}>Prévia</th>}
               <th className={head}>Investimento Meta</th>
               <th className={head}>Leads (Meta)</th>
               <th className={head}>Leads TS</th>
@@ -2764,6 +2771,11 @@ function TsByNameTable({
                   {l.name}
                   {!l.inMeta && <span className="ml-2 text-xs text-gray-400">(sem gasto no Meta)</span>}
                 </td>
+                {showPreview && (
+                  <td className="w-24 px-2.5 py-2 text-center">
+                    {l.preview ? <AdPreview row={l.preview} /> : <span className="text-gray-300">—</span>}
+                  </td>
+                )}
                 <td className={cell}>{formatBRL(l.spend)}</td>
                 <td className={cell}>{formatNumber(l.metaLeads)}</td>
                 <td className={`${cell} font-semibold text-gray-900`}>{formatNumber(l.ts)}</td>
@@ -2779,6 +2791,7 @@ function TsByNameTable({
             ))}
             <tr className="sticky bottom-0 bg-gray-50 font-semibold">
               <td className="px-2.5 py-2.5 text-left">Total</td>
+              {showPreview && <td />}
               <td className={cell}>{formatBRL(total.spend)}</td>
               <td className={cell}>{formatNumber(total.metaLeads)}</td>
               <td className={cell}>{formatNumber(total.ts)}</td>
@@ -3259,6 +3272,7 @@ function TsLeadsSection({
             nameLabel="Anúncio"
             metaRows={metaAds}
             sheetRows={data.byAd ?? []}
+            showPreview
           />
         </div>
       )}
