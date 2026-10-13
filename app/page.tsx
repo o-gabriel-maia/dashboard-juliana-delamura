@@ -697,8 +697,11 @@ function KpiGrid({
   previous,
   previousRange,
   kind,
+  showPageRates = true,
 }: {
   kind: Kind;
+  // O Resumo Geral mistura campanhas com e sem página: sem as taxas da página.
+  showPageRates?: boolean;
   totals: Metrics;
   previous: Metrics | undefined;
   previousRange: DateRange;
@@ -748,15 +751,17 @@ function KpiGrid({
       format: formatRate,
     },
   ];
-  cards.push(
-    { label: "Taxa de Carregamento", trend: "up", get: (m) => m.loadRate, format: formatRate },
-    {
-      label: "Taxa de Conversão da Página",
-      trend: "up",
-      get: (m) => m.pageConversionRate,
-      format: formatRate,
-    },
-  );
+  if (showPageRates) {
+    cards.push(
+      { label: "Taxa de Carregamento", trend: "up", get: (m) => m.loadRate, format: formatRate },
+      {
+        label: "Taxa de Conversão da Página",
+        trend: "up",
+        get: (m) => m.pageConversionRate,
+        format: formatRate,
+      },
+    );
+  }
   const notes = buildNotes(kind, totals, previous);
   const top: Card[] = cards.slice(0, 3);
   const render = (card: Card, index: number, list: Card[]) => {
@@ -787,7 +792,7 @@ function KpiGrid({
         {top.map(render)}
       </div>
       <div
-        className="grid grid-cols-2 gap-3 md:grid-cols-3"
+        className={`grid grid-cols-2 gap-3 ${(cards.length - 3) % 3 === 0 ? "md:grid-cols-3" : "md:grid-cols-4"}`}
       >
         {cards.slice(3).map(render)}
       </div>
@@ -2214,6 +2219,7 @@ export default function Home() {
 
                 <KpiGrid
                   kind={LEAD_KIND}
+                  showPageRates={false}
                   totals={resumoTotals}
                   previous={resumoPrevious}
                   previousRange={data.previousRange}
