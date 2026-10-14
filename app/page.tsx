@@ -360,14 +360,14 @@ const KINDS: Record<
       "Captação de leads para o grupo de Promoções Diárias da Black Friday: campanhas do Meta Ads (formulário nativo e página).",
   },
   li35: {
-    tab: "Captação LI 35",
+    tab: "Captação LI35",
     icon: Megaphone,
     result: "Leads",
     cost: "Custo por Lead",
     unit: "leads",
     article: "os",
     description:
-      "Captação de leads do LI 35: primeiro as campanhas do Meta Ads, depois as do Google Ads.",
+      "Captação de leads do LI35: primeiro as campanhas do Meta Ads, depois as do Google Ads.",
   },
 };
 // Todas as abas são de captação: os resumos somam os leads delas.
@@ -489,9 +489,13 @@ const METRIC_HELP: Record<string, string> = {
   "Visualizações 100%":
     "Quantas reproduções do vídeo foram assistidas até o fim. Só vale para vídeo; imagem fica zerada.",
   "Investimento (Meta + Google)":
-    "Soma do valor investido nas campanhas do LI 35 no Meta Ads e no Google Ads no período.",
-  Respostas:
-    "Pessoas que responderam à pesquisa no período, pela data em que responderam, já com os filtros escolhidos.",
+    "Soma do valor investido nas campanhas do LI35 no Meta Ads e no Google Ads no período.",
+  "Leads (planilha)":
+    "Inscrições da aba de leads da planilha no período, com os filtros escolhidos (todas as origens, não só tráfego pago).",
+  "Respostas da pesquisa":
+    "Pessoas que responderam à pesquisa no período, pela data em que responderam, com os filtros escolhidos.",
+  "Taxa de resposta":
+    "De cada 100 leads da planilha, quantos responderam à pesquisa (respostas ÷ leads, no mesmo período e com os mesmos filtros).",
   "Leads TS":
     "Inscrições da planilha em que a pessoa respondeu que já tem a Silhouette (TS = Tem Silhouette), vindas de tráfego pago.",
   "Leads NTS":
@@ -1761,7 +1765,7 @@ async function fetchDashboard(range: DateRange | null, fresh: boolean): Promise<
 
 const STALE_RETRY_MS = 10 * 1000;
 const MAX_STALE_RETRIES = 4;
-const LAST_DATA_KEY = "silhouette-experts-dashboard:ultimos-dados:7dias";
+const LAST_DATA_KEY = "silhouette-experts-dashboard:ultimos-dados:7dias:v2";
 
 // Conveniência: guarda a última resposta boa pra tela não ficar vazia se a Meta
 // recusar uma consulta (ex.: limite de requisições).
@@ -1977,7 +1981,7 @@ export default function Home() {
   const breakdowns =
     breakdownData && breakdownData.group === breakdownGroup ? breakdownData.value : undefined;
 
-  // Leads TS e NTS da planilha: só a aba do LI 35 usa, e vários blocos dela dependem.
+  // Leads TS e NTS da planilha: só a aba do LI35 usa, e vários blocos dela dependem.
   const [leadsState, setLeadsState] = useState<{ data?: LeadsData; error?: string }>();
   const needsLeads = activeKind === "li35";
   useEffect(() => {
@@ -2353,7 +2357,7 @@ export default function Home() {
           <div>
             <PanelHeader
               title="Resumo Geral"
-              description="Visão consolidada das campanhas de captação das Lives Secretas de quarta e de domingo, da Promo Diária e do LI 35 no Meta Ads."
+              description="Visão consolidada das campanhas de captação das Lives Secretas de quarta e de domingo, da Promo Diária e do LI35 no Meta Ads."
               {...headerProps}
             />
 
@@ -2365,7 +2369,7 @@ export default function Home() {
                   alcançaram <b className="text-gray-900">{formatNumber(data.totals.reach)}</b>{" "}
                   pessoas, com{" "}
                   <b className="text-gray-900">{formatNumber(data.totals.impressions)}</b>{" "}
-                  impressões. As campanhas de captação (Live Secreta de quarta e de domingo, Promo Diária e LI 35) geraram{" "}
+                  impressões. As campanhas de captação (Live Secreta de quarta e de domingo, Promo Diária e LI35) geraram{" "}
                   <b className="text-gray-900">{formatNumber(resumoTotals.conversations)}</b>{" "}
                   leads, a{" "}
                   <b className="text-gray-900">{formatBRL(resumoTotals.costPerConversation)}</b> por
@@ -2455,13 +2459,13 @@ export default function Home() {
             {activeKind === "li35" && (
               <SectionTitle
                 icon={<MetaLogo />}
-                note="Campanhas de captação do LI 35 no Facebook e no Instagram. Leads TS são as inscrições da planilha com a UTM do Meta (fb-paid-hot e fb-paid-cold) de quem já tem a Silhouette."
+                note="Campanhas de captação do LI35 no Facebook e no Instagram. Leads TS são as inscrições da planilha com a UTM do Meta (fb-paid-hot e fb-paid-cold) de quem já tem a Silhouette."
               >
                 Meta Ads
               </SectionTitle>
             )}
             {(() => {
-              // LI 35: leads e custo por lead viram TS, pela planilha (UTM fb-paid-hot e fb-paid-cold).
+              // LI35: leads e custo por lead viram TS, pela planilha (UTM fb-paid-hot e fb-paid-cold).
               const useTs = activeKind === "li35" && !!leads;
               const metaTs = leads ? leads.totals.tsPaid - leads.totals.tsGoogle : 0;
               const metaTsPrevious = leads
@@ -3018,7 +3022,7 @@ function LivesComparison({ rows, title }: { rows: Row[]; title: string }) {
   );
 }
 
-// Leads da planilha do LI 35 (TS = já tem Silhouette, NTS = ainda não tem) que
+// Leads da planilha do LI35 (TS = já tem Silhouette, NTS = ainda não tem) que
 // vieram de tráfego pago, com o custo por lead calculado sobre o investimento
 // somado do Meta Ads e do Google Ads.
 function TsLeadsSection({
@@ -3131,7 +3135,7 @@ function TsLeadsSection({
     <div>
       <SectionTitle
         icon={<FileSpreadsheet size={26} className="text-emerald-600" />}
-        note="Inscrições da planilha do LI 35 que vieram de tráfego pago, separadas em TS (já tem Silhouette) e NTS (ainda não tem). O custo por lead usa o investimento do Meta Ads e do Google Ads."
+        note="Inscrições da planilha do LI35 que vieram de tráfego pago, separadas em TS (já tem Silhouette) e NTS (ainda não tem). O custo por lead usa o investimento do Meta Ads e do Google Ads."
       >
         Leads TS e NTS (planilha)
       </SectionTitle>
@@ -3366,17 +3370,20 @@ type SurveyData = {
   previousRange: DateRange;
   total: number;
   previousTotal: number;
-  options: { fonte: string[]; campanha: string[]; anuncio: string[] };
+  leads: number;
+  previousLeads: number;
+  daily: { date: string; leads: number; responses: number; rate: number | null }[];
+  options: { fonte: string[]; campanha: string[]; publico: string[]; anuncio: string[] };
   questions: { key: string; title: string; data: { label: string; value: number }[] }[];
 };
 
-// Dados da pesquisa de leads do LI 35 (aba "Respostas pesquisa" da planilha): um
+// Dados da pesquisa de leads do LI35 (aba "Respostas pesquisa" da planilha): um
 // gráfico de rosca por pergunta, com filtros de fonte, campanha (posicionamento)
 // e anúncio, no mesmo período do restante da aba.
 function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: string }) {
-  const [filters, setFilters] = useState({ fonte: "", campanha: "", anuncio: "" });
+  const [filters, setFilters] = useState({ fonte: "", campanha: "", publico: "", anuncio: "" });
   const [result, setResult] = useState<{ key: string; data?: SurveyData; error?: string }>();
-  const key = `${range.since}:${range.until}:${filters.fonte}:${filters.campanha}:${filters.anuncio}:${refreshKey}`;
+  const key = `${range.since}:${range.until}:${filters.fonte}:${filters.campanha}:${filters.publico}:${filters.anuncio}:${refreshKey}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -3385,6 +3392,7 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
       until: range.until,
       fonte: filters.fonte,
       campanha: filters.campanha,
+      publico: filters.publico,
       anuncio: filters.anuncio,
       v: refreshKey,
     });
@@ -3400,7 +3408,16 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
     return () => {
       cancelled = true;
     };
-  }, [key, range.since, range.until, filters.fonte, filters.campanha, filters.anuncio, refreshKey]);
+  }, [
+    key,
+    range.since,
+    range.until,
+    filters.fonte,
+    filters.campanha,
+    filters.publico,
+    filters.anuncio,
+    refreshKey,
+  ]);
 
   const fresh = result?.key === key ? result : undefined;
   const data = fresh?.data ?? result?.data;
@@ -3440,7 +3457,7 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
     <div>
       <SectionTitle
         icon={<ClipboardList size={26} className="text-violet-600" />}
-        note="Respostas da pesquisa de leads do LI 35, pela data em que a pessoa respondeu. Os filtros mudam todos os gráficos."
+        note="Respostas da pesquisa de leads do LI35, pela data em que a pessoa respondeu. Os filtros mudam todos os gráficos."
       >
         Dados da Pesquisa
       </SectionTitle>
@@ -3459,22 +3476,105 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
             {select("Campanha (posicionamento)", filters.campanha, data.options.campanha, (v) =>
               setFilters((f) => ({ ...f, campanha: v })),
             )}
+            {select("Público (conjunto)", filters.publico, data.options.publico, (v) =>
+              setFilters((f) => ({ ...f, publico: v })),
+            )}
             {select("Anúncio", filters.anuncio, data.options.anuncio, (v) =>
               setFilters((f) => ({ ...f, anuncio: v })),
             )}
-            <Kpi
-              label="Respostas"
-              value={formatNumber(data.total)}
-              current={data.total}
-              previous={data.previousTotal}
-              previousLabel={formatNumber(data.previousTotal)}
-              trend="up"
-            />
           </div>
+          {(() => {
+            const rate = data.leads > 0 ? (data.total / data.leads) * 100 : null;
+            const previousRate =
+              data.previousLeads > 0 ? (data.previousTotal / data.previousLeads) * 100 : null;
+            return (
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Kpi
+                  label="Leads (planilha)"
+                  value={formatNumber(data.leads)}
+                  current={data.leads}
+                  previous={data.previousLeads}
+                  previousLabel={formatNumber(data.previousLeads)}
+                  trend="up"
+                />
+                <Kpi
+                  label="Respostas da pesquisa"
+                  value={formatNumber(data.total)}
+                  current={data.total}
+                  previous={data.previousTotal}
+                  previousLabel={formatNumber(data.previousTotal)}
+                  trend="up"
+                />
+                <Kpi
+                  label="Taxa de resposta"
+                  value={formatRate(rate)}
+                  current={rate}
+                  previous={previousRate}
+                  previousLabel={formatRate(previousRate)}
+                  trend="up"
+                />
+              </div>
+            );
+          })()}
           <p className="mt-2 text-xs text-gray-500">
             Variação em relação ao período anterior ({formatFullDate(data.previousRange.since)} a{" "}
-            {formatFullDate(data.previousRange.until)}).
+            {formatFullDate(data.previousRange.until)}). O público de cada resposta vem do mesmo
+            e-mail na aba de leads; quem veio por e-mail ou outra origem sem conjunto fica sem público.
           </p>
+
+          <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {(
+              [
+                { title: "Leads por Dia", key: "leads", color: "#2563eb", format: formatNumber },
+                { title: "Respostas da Pesquisa por Dia", key: "responses", color: "#7c3aed", format: formatNumber },
+                { title: "Taxa de Resposta por Dia", key: "rate", color: "#059669", format: formatRate },
+              ] as const
+            ).map((chart) => (
+              <div
+                key={chart.key}
+                className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+              >
+                <h3 className="mb-4 text-sm font-semibold text-gray-900">{chart.title}</h3>
+                <ResponsiveContainer width="100%" height={220}>
+                  <ComposedChart data={data.daily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid stroke="#e5e7eb" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={formatChartDate}
+                      tick={AXIS_TICK}
+                      axisLine={AXIS_LINE}
+                      tickLine={false}
+                      minTickGap={16}
+                    />
+                    <YAxis
+                      allowDecimals={chart.key === "rate"}
+                      tick={AXIS_TICK}
+                      axisLine={AXIS_LINE}
+                      tickLine={false}
+                      tickFormatter={(v: number) =>
+                        chart.key === "rate" ? `${Math.round(v)}%` : formatNumber(v)
+                      }
+                      width={44}
+                    />
+                    <Tooltip
+                      content={
+                        <ChartTooltip valueFormatter={(v) => chart.format(v)} />
+                      }
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey={chart.key}
+                      name={chart.title.replace(" por Dia", "")}
+                      stroke={chart.color}
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: chart.color, stroke: "#ffffff", strokeWidth: 2 }}
+                      connectNulls
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            ))}
+          </div>
           {data.total > 0 ? (
             <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               {data.questions
@@ -3642,7 +3742,7 @@ function GoogleAdsSection({
     <div>
       <SectionTitle
         icon={<GoogleAdsLogo />}
-        note="Campanhas de captação do LI 35 no Google Ads. Leads TS são as inscrições da planilha com a UTM do Google (yt-paid-hot) de quem já tem a Silhouette."
+        note="Campanhas de captação do LI35 no Google Ads. Leads TS são as inscrições da planilha com a UTM do Google (yt-paid-hot) de quem já tem a Silhouette."
       >
         Google Ads
       </SectionTitle>

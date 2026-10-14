@@ -4,12 +4,14 @@ export const dynamic = "force-dynamic";
 
 type DateRange = { since: string; until: string };
 
-// Aba "Respostas pesquisa" da planilha de resultado da pesquisa do LI 35: uma
+// Aba "Respostas pesquisa" da planilha de resultado da pesquisa do LI35: uma
 // linha por resposta. A planilha está com compartilhamento por link, então a
-// leitura não precisa de credencial. As colunas de e-mail (A e X) nunca são
-// lidas: só B a W (respostas) e Z a AB (UTMs).
+// leitura não precisa de credencial. O e-mail (colunas A e X da pesquisa e A dos
+// leads) é lido só aqui no servidor, para ligar cada resposta ao público (conjunto
+// de anúncios) do lead, e nunca sai na resposta da rota.
 const SHEET_ID = "1zcEFVG7Lr9bKlh_pkLiSYYjByI9iyabSNLciQrvg8iM";
 const TAB = "Respostas pesquisa";
+const LEADS_TAB = "Leads C/UTM";
 const DEFAULT_RANGE_DAYS = 7;
 const MAX_RANGE_DAYS = 370;
 const MAX_SLICES = 6;
@@ -97,10 +99,10 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
-async function fetchRange(range: string) {
+async function fetchRange(range: string, tab = TAB) {
   const url =
     `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv` +
-    `&sheet=${encodeURIComponent(TAB)}&range=${range}`;
+    `&sheet=${encodeURIComponent(tab)}&range=${range}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error("Não foi possível ler a planilha da pesquisa.");
   return parseCsv(await res.text());
@@ -158,9 +160,17 @@ export async function GET(request: Request) {
     const previous = previousRange(range);
     const fonte = searchParams.get("fonte") ?? "";
     const campanha = searchParams.get("campanha") ?? "";
+    const publico = searchParams.get("publico") ?? "";
     const anuncio = searchParams.get("anuncio") ?? "";
 
-    const [answers, utms] = await Promise.all([fetchRange("B:W"), fetchRange("Z:AB")]);
+    const [answers, utms, surveyEmail, surveyEmail2, leadEmail, leadRest] = await Promise.all([
+      fetchRange("B:W"),
+      fetchRange("Z:AB"),
+      fetchRange("A:A"),
+      fetchRange("X:X"),
+      fetchRange("A:A", LEADS_TAB),
+      fetchRange("E:J", LEADS_TAB),
+    ]);
     const head = (answers[0] ?? []).map((h) => h.trim().toLowerCase());
     const col = (re: string) => head.findIndex((h) => h.startsWith(re));
     const iDate = col("data_pesquisa");
@@ -173,15 +183,52 @@ export async function GET(request: Request) {
     const uContent = uHead.indexOf("utm_content");
     const qCols = QUESTIONS.map((q) => ({ ...q, index: col(q.column) }));
 
-    type Row = { date: string; fonte: string; campanha: string; anuncio: string; values: string[] };
+    // Leads da planilha (aba "Leads C/UTM"): data, UTMs e, pelo e-mail, o público de
+    // cada um, que a aba da pesquisa não traz.
+    const lHead = (leadRest[0] ?? []).map((h) => h.trim().toLowerCase());
+    const lDate = lHead.findIndex((h) => h.startsWith("data"));
+    const lSource = lHead.indexOf("utm source");
+    const lMedium = lHead.indexOf("utm medium");
+    const lContent = lHead.indexOf("utm content");
+    const lCampaign = lHead.indexOf("utm campaign");
+    const clean = (v: string | undefined) => (v ?? "").trim();
+    const publicoByEmail = new Map<string, string>();
+    type LeadRow = { date: string; fonte: string; campanha: string; publico: string; anuncio: string };
+    const leadRows: LeadRow[] = [];
+    for (let i = 1; i < leadRest.length; i++) {
+      const line = leadRest[i];
+      const date = lDate >= 0 ? isoDate(line[lDate] ?? "") : null;
+      if (!date) continue;
+      const row: LeadRow = {
+        date,
+        fonte: lSource >= 0 ? clean(line[lSource]) : "",
+        campanha: lCampaign >= 0 ? clean(line[lCampaign]) : "",
+        publico: lMedium >= 0 ? clean(line[lMedium]) : "",
+        anuncio: lContent >= 0 ? clean(line[lContent]) : "",
+      };
+      leadRows.push(row);
+      const email = clean(leadEmail[i]?.[0]).toLowerCase();
+      if (email && row.publico && !publicoByEmail.has(email)) publicoByEmail.set(email, row.publico);
+    }
+
+    type Row = {
+      date: string;
+      fonte: string;
+      campanha: string;
+      publico: string;
+      anuncio: string;
+      values: string[];
+    };
     const all: Row[] = [];
     for (let i = 1; i < answers.length; i++) {
       const line = answers[i];
       const date = isoDate(line[iDate] ?? "");
       if (!date) continue;
       const u = utms[i] ?? [];
+      const email = (clean(surveyEmail[i]?.[0]) || clean(surveyEmail2[i]?.[0])).toLowerCase();
       all.push({
         date,
+        publico: email ? (publicoByEmail.get(email) ?? "") : "",
         fonte: (uSource >= 0 ? u[uSource] : "")?.trim() ?? "",
         campanha: (uCampaign >= 0 ? u[uCampaign] : "")?.trim() ?? "",
         anuncio: (uContent >= 0 ? u[uContent] : "")?.trim() ?? "",
@@ -189,18 +236,36 @@ export async function GET(request: Request) {
       });
     }
 
-    const inRange = (r: Row, rg: DateRange) => r.date >= rg.since && r.date <= rg.until;
+    const inRange = <T extends { date: string }>(r: T, rg: DateRange) =>
+      r.date >= rg.since && r.date <= rg.until;
     const current = all.filter((r) => inRange(r, range));
-    const options = (get: (r: Row) => string) =>
-      [...new Set(current.map(get).filter((v) => v && !/^[{]/.test(v)))].sort((a, b) =>
-        a.localeCompare(b, "pt-BR")
+    const currentLeads = leadRows.filter((r) => inRange(r, range));
+    type Filterable = { fonte: string; campanha: string; publico: string; anuncio: string };
+    const options = (get: (r: Filterable) => string) =>
+      [...new Set([...current, ...currentLeads].map(get).filter((v) => v && !/^[{]/.test(v)))].sort(
+        (a, b) => a.localeCompare(b, "pt-BR")
       );
-    const matches = (r: Row) =>
+    const matches = (r: Filterable) =>
       (!fonte || r.fonte === fonte) &&
       (!campanha || r.campanha === campanha) &&
+      (!publico || r.publico === publico) &&
       (!anuncio || r.anuncio === anuncio);
     const rows = current.filter(matches);
     const previousRows = all.filter((r) => inRange(r, previous) && matches(r));
+    const leadsNow = leadRows.filter((r) => inRange(r, range) && matches(r));
+    const leadsBefore = leadRows.filter((r) => inRange(r, previous) && matches(r));
+
+    // Por dia: leads, respostas da pesquisa e a taxa de resposta do dia.
+    const leadsByDay = new Map<string, number>();
+    for (const r of leadsNow) leadsByDay.set(r.date, (leadsByDay.get(r.date) ?? 0) + 1);
+    const answersByDay = new Map<string, number>();
+    for (const r of rows) answersByDay.set(r.date, (answersByDay.get(r.date) ?? 0) + 1);
+    const daily = [];
+    for (let date = range.since; date <= range.until; date = addDays(date, 1)) {
+      const leads = leadsByDay.get(date) ?? 0;
+      const responses = answersByDay.get(date) ?? 0;
+      daily.push({ date, leads, responses, rate: leads > 0 ? (responses / leads) * 100 : null });
+    }
 
     return NextResponse.json(
       {
@@ -209,9 +274,13 @@ export async function GET(request: Request) {
         previousRange: previous,
         total: rows.length,
         previousTotal: previousRows.length,
+        leads: leadsNow.length,
+        previousLeads: leadsBefore.length,
+        daily,
         options: {
           fonte: options((r) => r.fonte),
           campanha: options((r) => r.campanha),
+          publico: options((r) => r.publico),
           anuncio: options((r) => r.anuncio),
         },
         questions: qCols.map((q, i) => ({

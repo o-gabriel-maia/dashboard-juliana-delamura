@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 type DateRange = { since: string; until: string };
 
-// Planilha de resultado da pesquisa do LI 35, aba "Leads C/UTM": uma linha por
+// Planilha de resultado da pesquisa do LI35, aba "Leads C/UTM": uma linha por
 // inscrição, com a data, a resposta "Você já tem Silhouette?" (Sim = TS, Não =
 // NTS) e a UTM de origem. A planilha está com compartilhamento por link, então a
 // leitura não precisa de credencial. Só as colunas E a J são lidas (sem e-mail

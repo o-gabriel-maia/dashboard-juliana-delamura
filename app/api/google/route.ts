@@ -7,7 +7,7 @@ type DateRange = { since: string; until: string };
 // Conta do Google Ads da Silhouette Experts (acessada direto, sem MCC).
 const CUSTOMER_ID = "7432481101";
 const LOGIN_CUSTOMER_ID = "7432481101";
-// Entram as campanhas cujo nome tem todos esses trechos (captação do LI 35).
+// Entram as campanhas cujo nome tem todos esses trechos (captação do LI35).
 const CAMPAIGN_TAGS = ["LI35"];
 const API_URL = `https://googleads.googleapis.com/v25/customers/${CUSTOMER_ID}/googleAds:searchStream`;
 const DEFAULT_RANGE_DAYS = 7;
