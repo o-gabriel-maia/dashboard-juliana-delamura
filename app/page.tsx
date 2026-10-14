@@ -3329,7 +3329,6 @@ function TsLeadsSection({
                   name="Custo por Lead TS"
                   stroke="#7c3aed"
                   strokeWidth={2}
-                  strokeDasharray="5 4"
                   dot={{ r: 3, fill: "#7c3aed", stroke: "#ffffff", strokeWidth: 2 }}
                   connectNulls
                 />
@@ -3340,7 +3339,6 @@ function TsLeadsSection({
                   name="Custo por Lead NTS"
                   stroke="#db2777"
                   strokeWidth={2}
-                  strokeDasharray="5 4"
                   dot={{ r: 3, fill: "#db2777", stroke: "#ffffff", strokeWidth: 2 }}
                   connectNulls
                 />
