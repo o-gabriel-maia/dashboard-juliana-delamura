@@ -29,6 +29,7 @@ import {
 import {
   LayoutDashboard,
   CalendarDays,
+  ClipboardList,
   FileSpreadsheet,
   Tag,
   Megaphone,
@@ -489,6 +490,8 @@ const METRIC_HELP: Record<string, string> = {
     "Quantas reproduções do vídeo foram assistidas até o fim. Só vale para vídeo; imagem fica zerada.",
   "Investimento (Meta + Google)":
     "Soma do valor investido nas campanhas do LI 35 no Meta Ads e no Google Ads no período.",
+  Respostas:
+    "Pessoas que responderam à pesquisa no período, pela data em que responderam, já com os filtros escolhidos.",
   "Leads TS":
     "Inscrições da planilha em que a pessoa respondeu que já tem a Silhouette (TS = Tem Silhouette), vindas de tráfego pago.",
   "Leads NTS":
@@ -2559,6 +2562,9 @@ export default function Home() {
                 leadsError={leadsError}
               />
             )}
+            {activeKind === "li35" && (
+              <PesquisaSection range={data.range} refreshKey={data.updatedAt} />
+            )}
           </div>
         )}
       </main>
@@ -3349,6 +3355,154 @@ function TsLeadsSection({
             sheetRows={data.byAd ?? []}
             showPreview
           />
+        </div>
+      )}
+    </div>
+  );
+}
+
+type SurveyData = {
+  range: DateRange;
+  previousRange: DateRange;
+  total: number;
+  previousTotal: number;
+  options: { fonte: string[]; campanha: string[]; anuncio: string[] };
+  questions: { key: string; title: string; data: { label: string; value: number }[] }[];
+};
+
+// Dados da pesquisa de leads do LI 35 (aba "Respostas pesquisa" da planilha): um
+// gráfico de rosca por pergunta, com filtros de fonte, campanha (posicionamento)
+// e anúncio, no mesmo período do restante da aba.
+function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: string }) {
+  const [filters, setFilters] = useState({ fonte: "", campanha: "", anuncio: "" });
+  const [result, setResult] = useState<{ key: string; data?: SurveyData; error?: string }>();
+  const key = `${range.since}:${range.until}:${filters.fonte}:${filters.campanha}:${filters.anuncio}:${refreshKey}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams({
+      since: range.since,
+      until: range.until,
+      fonte: filters.fonte,
+      campanha: filters.campanha,
+      anuncio: filters.anuncio,
+      v: refreshKey,
+    });
+    fetch(`/api/pesquisa?${params}`)
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok || json.error) throw new Error(json.error || "Erro ao ler a pesquisa.");
+        if (!cancelled) setResult({ key, data: json as SurveyData });
+      })
+      .catch((e) => {
+        if (!cancelled) setResult({ key, error: friendlyError(e) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [key, range.since, range.until, filters.fonte, filters.campanha, filters.anuncio, refreshKey]);
+
+  const fresh = result?.key === key ? result : undefined;
+  const data = fresh?.data ?? result?.data;
+  const loading = !fresh && !!data;
+  const error = fresh?.error;
+
+  const select = (
+    label: string,
+    value: string,
+    options: string[],
+    onChange: (v: string) => void,
+  ) => (
+    <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+      {label}
+      <span className="relative">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3.5 pr-9 text-sm font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">Todos</option>
+          {options.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          size={16}
+          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+        />
+      </span>
+    </label>
+  );
+
+  return (
+    <div>
+      <SectionTitle
+        icon={<ClipboardList size={26} className="text-violet-600" />}
+        note="Respostas da pesquisa de leads do LI 35, pela data em que a pessoa respondeu. Os filtros mudam todos os gráficos."
+      >
+        Dados da Pesquisa
+      </SectionTitle>
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {!data && !error && <div className="text-gray-500">Carregando a pesquisa…</div>}
+      {data && (
+        <div className={`transition-opacity duration-300 ${loading ? "opacity-40" : ""}`}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {select("Fonte", filters.fonte, data.options.fonte, (v) =>
+              setFilters((f) => ({ ...f, fonte: v })),
+            )}
+            {select("Campanha (posicionamento)", filters.campanha, data.options.campanha, (v) =>
+              setFilters((f) => ({ ...f, campanha: v })),
+            )}
+            {select("Anúncio", filters.anuncio, data.options.anuncio, (v) =>
+              setFilters((f) => ({ ...f, anuncio: v })),
+            )}
+            <Kpi
+              label="Respostas"
+              value={formatNumber(data.total)}
+              current={data.total}
+              previous={data.previousTotal}
+              previousLabel={formatNumber(data.previousTotal)}
+              trend="up"
+            />
+          </div>
+          <p className="mt-2 text-xs text-gray-500">
+            Variação em relação ao período anterior ({formatFullDate(data.previousRange.since)} a{" "}
+            {formatFullDate(data.previousRange.until)}).
+          </p>
+          {data.total > 0 ? (
+            <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {data.questions
+                .filter((q) => q.data.length > 0)
+                .map((q) => {
+                  const total = q.data.reduce((sum, d) => sum + d.value, 0);
+                  const top = q.data[0];
+                  return (
+                    <DonutChart
+                      key={q.key}
+                      title={q.title}
+                      description={
+                        top && total > 0
+                          ? `Mais comum: ${top.label} (${formatRate((top.value / total) * 100)}).`
+                          : ""
+                      }
+                      data={q.data}
+                      centerLabel="respostas"
+                      format={formatNumber}
+                    />
+                  );
+                })}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600 shadow-sm">
+              Nenhuma resposta da pesquisa neste período com os filtros escolhidos.
+            </div>
+          )}
         </div>
       )}
     </div>

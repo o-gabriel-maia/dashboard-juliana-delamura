@@ -18,6 +18,8 @@ Na aba **Captação LI 35** há também a seção **Leads TS e NTS (planilha)**,
 
 O período padrão de todas as abas é **Últimos 7 dias**. Nas abas Live Secreta Quarta e Domingo há um comparativo por live; na aba LI 35, o custo por lead TS por público (conjunto) e por criativo (anúncio), cruzando o gasto do Meta com as UTMs da planilha.
 
+No fim da aba **Captação LI 35**, a seção **Dados da Pesquisa** lê a aba `Respostas pesquisa` da planilha (máquina, frase que descreve, uso, curso, desejo, objeção, estado, idade, canal, temperatura, renda e se tem Silhouette), com filtros de fonte, campanha (posicionamento) e anúncio. As colunas de e-mail nunca são lidas.
+
 As campanhas entram em cada aba pela tag no nome: campanha nova com a tag aparece sozinha. Entram as ativas e as pausadas que tiveram gasto no período escolhido. O resultado é o mesmo da coluna "Resultados" do Gerenciador de Anúncios (leads por formulário nativo ou pelo pixel).
 
 ## Rodar localmente
