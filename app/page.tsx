@@ -930,13 +930,18 @@ function InvestimentoConversasChart({
   data,
   kind,
   note,
+  resultLabel,
+  costLabel,
 }: {
   data: DailyPoint[];
   kind: Kind;
   note?: string;
+  // Nomes do resultado e do custo quando os números são os leads TS da planilha.
+  resultLabel?: string;
+  costLabel?: string;
 }) {
-  const countName = KINDS[kind].result;
-  const costName = KINDS[kind].cost;
+  const countName = resultLabel ?? KINDS[kind].result;
+  const costName = costLabel ?? KINDS[kind].cost;
   // No celular os eixos Y somem pra sobrar largura pro gráfico; os valores ficam no toque.
   const narrow = useIsNarrow();
   return (
@@ -1027,7 +1032,10 @@ type MetricLine = {
   format: (v: number) => string;
 };
 
-function metricLines(kind?: Kind): MetricLine[] {
+function metricLines(
+  kind?: Kind,
+  labels?: { result?: string; cost?: string },
+): MetricLine[] {
   const media: MetricLine[] = [
     {
       key: "cpm",
@@ -1056,14 +1064,14 @@ function metricLines(kind?: Kind): MetricLine[] {
     ...media,
     {
       key: "conversations",
-      name: KINDS[kind].result,
+      name: labels?.result ?? KINDS[kind].result,
       color: "#db2777",
       axis: "count",
       format: formatNumber,
     },
     {
       key: "costPerConversation",
-      name: KINDS[kind].cost,
+      name: labels?.cost ?? KINDS[kind].cost,
       color: "#7c3aed",
       axis: "money",
       format: formatBRL,
@@ -1071,9 +1079,21 @@ function metricLines(kind?: Kind): MetricLine[] {
   ];
 }
 
-function MetricasChart({ data, kind, note }: { data: DailyPoint[]; kind?: Kind; note?: string }) {
+function MetricasChart({
+  data,
+  kind,
+  note,
+  resultLabel,
+  costLabel,
+}: {
+  data: DailyPoint[];
+  kind?: Kind;
+  note?: string;
+  resultLabel?: string;
+  costLabel?: string;
+}) {
   const narrow = useIsNarrow();
-  const lines = metricLines(kind);
+  const lines = metricLines(kind, { result: resultLabel, cost: costLabel });
   const order = new Map(lines.map((l, i) => [l.name, i]));
   return (
     <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -2491,11 +2511,31 @@ export default function Home() {
                 />
               );
             })()}
-            <InvestimentoConversasChart
-              kind={activeKind}
-              data={data.dailyByCampaign[activeCampaign.id] ?? []}
-            />
-            <MetricasChart kind={activeKind} data={data.dailyByCampaign[activeCampaign.id] ?? []} />
+            {(() => {
+              // LI35: leads e custo por lead por dia viram TS, pela planilha (Meta = fb-paid-*).
+              const useTs = activeKind === "li35" && !!leads;
+              const points = data.dailyByCampaign[activeCampaign.id] ?? [];
+              const daily = useTs
+                ? points.map((p) => {
+                    const day = leads?.daily.find((d) => d.date === p.date);
+                    const ts = day ? day.tsPaid - day.tsGoogle : 0;
+                    return {
+                      ...p,
+                      conversations: ts,
+                      costPerConversation: ts > 0 ? p.spend / ts : null,
+                    };
+                  })
+                : points;
+              const labels = useTs
+                ? { resultLabel: "Leads TS", costLabel: "Custo por Lead TS" }
+                : {};
+              return (
+                <>
+                  <InvestimentoConversasChart kind={activeKind} data={daily} {...labels} />
+                  <MetricasChart kind={activeKind} data={daily} {...labels} />
+                </>
+              );
+            })()}
             <LevelTable
               kind={activeKind}
               title="Campanhas"
@@ -3830,7 +3870,23 @@ function GoogleAdsSection({
           </div>
           {data.totals.impressions > 0 ? (
             <>
-              <InvestimentoConversasChart kind="li35" data={data.dailyChart} />
+              <InvestimentoConversasChart
+                kind="li35"
+                data={
+                  leads
+                    ? data.dailyChart.map((p) => {
+                        const ts = leads.daily.find((d) => d.date === p.date)?.tsGoogle ?? 0;
+                        return {
+                          ...p,
+                          conversations: ts,
+                          costPerConversation: ts > 0 ? p.spend / ts : null,
+                        };
+                      })
+                    : data.dailyChart
+                }
+                resultLabel={leads ? "Leads TS" : undefined}
+                costLabel={leads ? "Custo por Lead TS" : undefined}
+              />
               <LevelTable
                 kind="li35"
                 title="Campanhas"
