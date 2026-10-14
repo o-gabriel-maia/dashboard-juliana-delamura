@@ -490,7 +490,7 @@ const METRIC_HELP: Record<string, string> = {
     "Quantas reproduções do vídeo foram assistidas até o fim. Só vale para vídeo; imagem fica zerada.",
   "Investimento (Meta + Google)":
     "Soma do valor investido nas campanhas do LI35 no Meta Ads e no Google Ads no período.",
-  "Leads (planilha)":
+  "Leads Totais (planilha)":
     "Inscrições da aba de leads da planilha no período, com os filtros escolhidos (todas as origens, não só tráfego pago).",
   "Respostas da pesquisa":
     "Pessoas que responderam à pesquisa no período, pela data em que responderam, com os filtros escolhidos.",
@@ -3490,7 +3490,7 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
             return (
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Kpi
-                  label="Leads (planilha)"
+                  label="Leads Totais (planilha)"
                   value={formatNumber(data.leads)}
                   current={data.leads}
                   previous={data.previousLeads}
@@ -3522,59 +3522,84 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
             e-mail na aba de leads; quem veio por e-mail ou outra origem sem conjunto fica sem público.
           </p>
 
-          <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {(
-              [
-                { title: "Leads por Dia", key: "leads", color: "#2563eb", format: formatNumber },
-                { title: "Respostas da Pesquisa por Dia", key: "responses", color: "#7c3aed", format: formatNumber },
-                { title: "Taxa de Resposta por Dia", key: "rate", color: "#059669", format: formatRate },
-              ] as const
-            ).map((chart) => (
-              <div
-                key={chart.key}
-                className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-              >
-                <h3 className="mb-4 text-sm font-semibold text-gray-900">{chart.title}</h3>
-                <ResponsiveContainer width="100%" height={220}>
-                  <ComposedChart data={data.daily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid stroke="#e5e7eb" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatChartDate}
-                      tick={AXIS_TICK}
-                      axisLine={AXIS_LINE}
-                      tickLine={false}
-                      minTickGap={16}
-                    />
-                    <YAxis
-                      allowDecimals={chart.key === "rate"}
-                      tick={AXIS_TICK}
-                      axisLine={AXIS_LINE}
-                      tickLine={false}
-                      tickFormatter={(v: number) =>
-                        chart.key === "rate" ? `${Math.round(v)}%` : formatNumber(v)
+          <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-sm font-semibold text-gray-900">
+              Leads, Respostas da Pesquisa e Taxa de Resposta por Dia
+              <ChartNote note="(contagens no eixo da esquerda; taxa de resposta, em %, no eixo da direita)" />
+            </h3>
+            <ResponsiveContainer width="100%" height={320}>
+              <ComposedChart data={data.daily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="#e5e7eb" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={formatChartDate}
+                  tick={AXIS_TICK}
+                  axisLine={AXIS_LINE}
+                  tickLine={false}
+                  minTickGap={16}
+                />
+                <YAxis
+                  yAxisId="count"
+                  allowDecimals={false}
+                  tick={AXIS_TICK}
+                  axisLine={AXIS_LINE}
+                  tickLine={false}
+                  tickFormatter={(v: number) => formatNumber(v)}
+                  width={48}
+                />
+                <YAxis
+                  yAxisId="rate"
+                  orientation="right"
+                  tick={AXIS_TICK}
+                  axisLine={AXIS_LINE}
+                  tickLine={false}
+                  tickFormatter={(v: number) => `${Math.round(v)}%`}
+                  width={48}
+                  domain={[0, "auto"]}
+                />
+                <Tooltip
+                  content={
+                    <ChartTooltip
+                      valueFormatter={(v, name) =>
+                        name === "Taxa de Resposta" ? formatRate(v) : formatNumber(v)
                       }
-                      width={44}
                     />
-                    <Tooltip
-                      content={
-                        <ChartTooltip valueFormatter={(v) => chart.format(v)} />
-                      }
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey={chart.key}
-                      name={chart.title.replace(" por Dia", "")}
-                      stroke={chart.color}
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: chart.color, stroke: "#ffffff", strokeWidth: 2 }}
-                      connectNulls
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            ))}
+                  }
+                />
+                <Legend wrapperStyle={{ fontSize: 12, color: "#6b7280" }} />
+                <Line
+                  yAxisId="count"
+                  type="monotone"
+                  dataKey="leads"
+                  name="Leads"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: "#2563eb", stroke: "#ffffff", strokeWidth: 2 }}
+                />
+                <Line
+                  yAxisId="count"
+                  type="monotone"
+                  dataKey="responses"
+                  name="Respostas da Pesquisa"
+                  stroke="#7c3aed"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: "#7c3aed", stroke: "#ffffff", strokeWidth: 2 }}
+                />
+                <Line
+                  yAxisId="rate"
+                  type="monotone"
+                  dataKey="rate"
+                  name="Taxa de Resposta"
+                  stroke="#059669"
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                  dot={{ r: 3, fill: "#059669", stroke: "#ffffff", strokeWidth: 2 }}
+                  connectNulls
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
+
           {data.total > 0 ? (
             <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               {data.questions
