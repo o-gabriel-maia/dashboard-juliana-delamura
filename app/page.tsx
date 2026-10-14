@@ -3621,7 +3621,6 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
                   name="Taxa de Resposta"
                   stroke="#059669"
                   strokeWidth={2}
-                  strokeDasharray="5 4"
                   dot={{ r: 3, fill: "#059669", stroke: "#ffffff", strokeWidth: 2 }}
                   connectNulls
                 />
