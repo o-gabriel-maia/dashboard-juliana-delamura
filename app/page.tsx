@@ -1157,12 +1157,15 @@ function DonutChart({
   data,
   centerLabel,
   format,
+  footer,
 }: {
   title: string;
   description: string;
   data: PieSlice[];
   centerLabel: string;
   format: (value: number) => string;
+  // Breve explicação embaixo da rosca: o que o dado significa.
+  footer?: string;
 }) {
   // Fatia em destaque (mouse sobre a rosca ou sobre a legenda): o centro passa
   // a mostrar essa fatia, em vez de abrir um tooltip por cima do total.
@@ -1250,6 +1253,11 @@ function DonutChart({
           ))}
         </div>
       </div>
+      {footer && (
+        <p className="mt-4 border-t border-gray-100 pt-3 text-xs leading-relaxed text-gray-600">
+          {footer}
+        </p>
+      )}
     </div>
   );
 }
@@ -3377,6 +3385,27 @@ type SurveyData = {
   questions: { key: string; title: string; data: { label: string; value: number }[] }[];
 };
 
+// O que cada gráfico da pesquisa significa, em linguagem simples.
+const SURVEY_EXPLANATIONS: Record<string, string> = {
+  maquina: "Mostra quais máquinas as respondentes têm. \"Outros\" soma os modelos menos citados.",
+  frase:
+    "Mostra em que momento a pessoa está com a Silhouette: comprou e deixou parada, usa e quer aprender mais ou usa e já teve problemas.",
+  uso: "Mostra se a pessoa usa a Silhouette para trabalho ou como hobbie.",
+  curso: "Mostra quantas pessoas já fizeram algum curso de Silhouette antes de responder.",
+  desejo:
+    "Resposta em texto livre sobre o que a pessoa mais quer fazer com a máquina. Respostas parecidas foram somadas e \"Outros\" junta as menos citadas.",
+  objecao:
+    "Resposta em texto livre sobre o que mais trava a pessoa de usar a máquina. Respostas parecidas foram somadas e \"Outros\" junta as menos citadas.",
+  estado: "Mostra de qual estado são as respondentes.",
+  idade: "Mostra a faixa de idade das respondentes.",
+  canal: "Mostra por qual canal a pessoa conheceu a Ju / Silhouette Experts.",
+  temperatura:
+    "Mostra há quanto tempo a pessoa conhece a Ju: quanto mais tempo, mais aquecido é o público.",
+  renda: "Mostra a renda mensal que a pessoa declarou.",
+  silhouette:
+    "Mostra quantas respondentes já têm a Silhouette (Sim) e quantas ainda não têm (Não).",
+};
+
 // Dados da pesquisa de leads do LI35 (aba "Respostas pesquisa" da planilha): um
 // gráfico de rosca por pergunta, com filtros de fonte, campanha (posicionamento)
 // e anúncio, no mesmo período do restante da aba.
@@ -3607,6 +3636,16 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
                 .map((q) => {
                   const total = q.data.reduce((sum, d) => sum + d.value, 0);
                   const top = q.data[0];
+                  const second = q.data.find((d, i) => i > 0 && d.label !== "Outros");
+                  const explanation = SURVEY_EXPLANATIONS[q.key];
+                  const footer = [
+                    explanation,
+                    second && total > 0
+                      ? `Em seguida vem ${second.label} (${formatRate((second.value / total) * 100)}).`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
                   return (
                     <DonutChart
                       key={q.key}
@@ -3619,6 +3658,7 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
                       data={q.data}
                       centerLabel="respostas"
                       format={formatNumber}
+                      footer={footer}
                     />
                   );
                 })}
