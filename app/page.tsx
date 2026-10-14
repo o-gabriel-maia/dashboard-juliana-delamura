@@ -667,12 +667,17 @@ function describeChange(change: number, plural = false) {
 // Anotações automáticas sobre como as métricas dos cards se relacionam, em
 // linguagem simples. `mixed` marca os resumos (geral e de loja), onde o valor
 // investido inclui campanhas que não geram o resultado do card.
-function buildNotes(kind: Kind, totals: Metrics, previous: Metrics | undefined) {
+function buildNotes(
+  kind: Kind,
+  totals: Metrics,
+  previous: Metrics | undefined,
+  labels?: { result?: string; cost?: string },
+) {
   if (!previous) return [];
   const notes: string[] = [];
-  const result = KINDS[kind].result.toLocaleLowerCase("pt-BR");
+  const result = (labels?.result ?? KINDS[kind].result).toLocaleLowerCase("pt-BR");
   const article = KINDS[kind].article;
-  const cost = KINDS[kind].cost.toLocaleLowerCase("pt-BR");
+  const cost = (labels?.cost ?? KINDS[kind].cost).toLocaleLowerCase("pt-BR");
 
   const spend = changeOf(totals.spend, previous.spend);
   const results = changeOf(totals.conversations, previous.conversations);
@@ -737,8 +742,13 @@ function KpiGrid({
   previousRange,
   kind,
   showPageRates = true,
+  resultLabel,
+  costLabel,
 }: {
   kind: Kind;
+  // Nome do resultado e do custo quando os números não são os da Meta (leads TS da planilha).
+  resultLabel?: string;
+  costLabel?: string;
   // O Resumo Geral mistura campanhas com e sem página: sem as taxas da página.
   showPageRates?: boolean;
   totals: Metrics;
@@ -759,13 +769,13 @@ function KpiGrid({
       format: formatBRL,
     },
     {
-      label: KINDS[kind].result,
+      label: resultLabel ?? KINDS[kind].result,
       trend: "up",
       get: (m) => m.conversations,
       format: formatNumber,
     },
     {
-      label: KINDS[kind].cost,
+      label: costLabel ?? KINDS[kind].cost,
       trend: "down",
       get: (m) => m.costPerConversation,
       format: formatBRL,
@@ -801,7 +811,7 @@ function KpiGrid({
       },
     );
   }
-  const notes = buildNotes(kind, totals, previous);
+  const notes = buildNotes(kind, totals, previous, { result: resultLabel, cost: costLabel });
   const top: Card[] = cards.slice(0, 3);
   const render = (card: Card, index: number, list: Card[]) => {
     const current = card.get(totals);
@@ -1964,6 +1974,33 @@ export default function Home() {
   const breakdowns =
     breakdownData && breakdownData.group === breakdownGroup ? breakdownData.value : undefined;
 
+  // Leads TS e NTS da planilha: só a aba do LI 35 usa, e vários blocos dela dependem.
+  const [leadsState, setLeadsState] = useState<{ data?: LeadsData; error?: string }>();
+  const needsLeads = activeKind === "li35";
+  useEffect(() => {
+    if (!needsLeads || !rangeSince || !rangeUntil) return;
+    let cancelled = false;
+    const params = new URLSearchParams({
+      since: rangeSince,
+      until: rangeUntil,
+      v: updatedAt ?? "",
+    });
+    fetch(`/api/leads?${params}`)
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok || json.error) throw new Error(json.error || "Erro ao ler a planilha de leads.");
+        if (!cancelled) setLeadsState({ data: json as LeadsData });
+      })
+      .catch((e) => {
+        if (!cancelled) setLeadsState((current) => ({ data: current?.data, error: friendlyError(e) }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsLeads, rangeSince, rangeUntil, updatedAt]);
+  const leads = leadsState?.data;
+  const leadsError = leadsState?.error;
+
   const periodLabel = data
     ? data.range.since === data.range.until
       ? formatFullDate(data.range.since)
@@ -2415,17 +2452,30 @@ export default function Home() {
             {activeKind === "li35" && (
               <SectionTitle
                 icon={<MetaLogo />}
-                note="Campanhas de captação do LI 35 no Facebook e no Instagram."
+                note="Campanhas de captação do LI 35 no Facebook e no Instagram. Leads TS são as inscrições da planilha com a UTM do Meta (fb-paid-hot e fb-paid-cold) de quem já tem a Silhouette."
               >
                 Meta Ads
               </SectionTitle>
             )}
-            <KpiGrid
-              kind={activeKind}
-              totals={activeCampaign}
-              previous={data.previousByCampaign[activeCampaign.id]}
-              previousRange={data.previousRange}
-            />
+            {(() => {
+              // LI 35: leads e custo por lead viram TS, pela planilha (UTM fb-paid-hot e fb-paid-cold).
+              const useTs = activeKind === "li35" && !!leads;
+              const metaTs = leads ? leads.totals.tsPaid - leads.totals.tsGoogle : 0;
+              const metaTsPrevious = leads
+                ? leads.previousTotals.tsPaid - leads.previousTotals.tsGoogle
+                : 0;
+              const previous = data.previousByCampaign[activeCampaign.id];
+              return (
+                <KpiGrid
+                  kind={activeKind}
+                  totals={useTs ? withTsLeads(activeCampaign, metaTs) : activeCampaign}
+                  previous={useTs && previous ? withTsLeads(previous, metaTsPrevious) : previous}
+                  previousRange={data.previousRange}
+                  resultLabel={useTs ? "Leads TS" : undefined}
+                  costLabel={useTs ? "Custo por Lead TS" : undefined}
+                />
+              );
+            })()}
             <InvestimentoConversasChart
               kind={activeKind}
               data={data.dailyByCampaign[activeCampaign.id] ?? []}
@@ -2505,6 +2555,8 @@ export default function Home() {
                 metaDaily={data.dailyByCampaign[activeCampaign.id] ?? []}
                 metaAdsets={data.levels.adsets.filter((r) => r.campaignId === activeCampaign.id)}
                 metaAds={data.levels.ads.filter((r) => r.campaignId === activeCampaign.id)}
+                leads={leads}
+                leadsError={leadsError}
               />
             )}
           </div>
@@ -2567,6 +2619,11 @@ function SectionTitle({
 
 // Leads TS e NTS da planilha para um nome de conjunto/grupo ou de anúncio, por plataforma.
 type SheetByName = { platform: "meta" | "google"; name: string; ts: number; nts: number };
+
+// Troca os leads e o custo por lead de um bloco pelos leads TS da planilha.
+function withTsLeads(m: Metrics, ts: number): Metrics {
+  return { ...m, conversations: ts, costPerConversation: ts > 0 ? m.spend / ts : null };
+}
 
 type LeadsCounts = {
   tsPaid: number;
@@ -2959,8 +3016,6 @@ function LivesComparison({ rows, title }: { rows: Row[]; title: string }) {
 // vieram de tráfego pago, com o custo por lead calculado sobre o investimento
 // somado do Meta Ads e do Google Ads.
 function TsLeadsSection({
-  range,
-  refreshKey,
   spend,
   previousSpend,
   metaSpend,
@@ -2971,9 +3026,9 @@ function TsLeadsSection({
   metaAds,
   googleAdsets,
   googleAds,
+  leads,
+  leadsError,
 }: {
-  range: DateRange;
-  refreshKey: string;
   spend: number;
   previousSpend: number | null;
   metaSpend: number;
@@ -2984,32 +3039,13 @@ function TsLeadsSection({
   metaAds: Row[];
   googleAdsets: Row[];
   googleAds: Row[];
+  leads?: LeadsData;
+  leadsError?: string;
 }) {
-  const key = `${range.since}:${range.until}:${refreshKey}`;
-  const [result, setResult] = useState<{ key: string; data?: LeadsData; error?: string }>();
   const narrow = useIsNarrow();
-
-  useEffect(() => {
-    let cancelled = false;
-    const params = new URLSearchParams({ since: range.since, until: range.until, v: refreshKey });
-    fetch(`/api/leads?${params}`)
-      .then(async (res) => {
-        const json = await res.json();
-        if (!res.ok || json.error) throw new Error(json.error || "Erro ao ler a planilha de leads.");
-        if (!cancelled) setResult({ key, data: json as LeadsData });
-      })
-      .catch((e) => {
-        if (!cancelled) setResult({ key, error: friendlyError(e) });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [key, range.since, range.until, refreshKey]);
-
-  const fresh = result?.key === key ? result : undefined;
-  const data = fresh?.data ?? result?.data;
-  const loading = !fresh && !!data;
-  const error = fresh?.error;
+  const data = leads;
+  const loading = false;
+  const error = leadsError;
 
   // Junta, por dia, o investimento de cada plataforma com os leads da planilha.
   const days: TsNtsDay[] = (data?.daily ?? []).map((d) => {
@@ -3329,6 +3365,8 @@ function GoogleAdsSection({
   metaDaily,
   metaAdsets,
   metaAds,
+  leads,
+  leadsError,
 }: {
   range: DateRange;
   refreshKey: string;
@@ -3337,6 +3375,8 @@ function GoogleAdsSection({
   metaDaily: DailyPoint[];
   metaAdsets: Row[];
   metaAds: Row[];
+  leads?: LeadsData;
+  leadsError?: string;
 }) {
   const key = `${range.since}:${range.until}:${refreshKey}`;
   const [result, setResult] = useState<{ key: string; data?: GoogleData; error?: string }>();
@@ -3369,10 +3409,26 @@ function GoogleAdsSection({
     get: (m: Metrics) => number | null;
     format: (v: number | null) => string;
   };
+  // Leads do Google = inscrições TS da planilha com a UTM do Google (yt-paid-hot).
+  const googleTs = leads?.totals.tsGoogle ?? null;
+  const googleTsPrevious = leads?.previousTotals.tsGoogle ?? null;
   const cards: Card[] = [
     { label: "Valor Investido", trend: "up", get: (m) => m.spend, format: formatBRL },
-    { label: "Leads", trend: "up", get: (m) => m.conversations, format: formatNumber },
-    { label: "Custo por Lead", trend: "down", get: (m) => m.costPerConversation, format: formatBRL },
+    {
+      label: "Leads TS",
+      trend: "up",
+      get: (m) => (m === data?.totals ? googleTs : googleTsPrevious),
+      format: formatNumber,
+    },
+    {
+      label: "Custo por Lead TS",
+      trend: "down",
+      get: (m) => {
+        const ts = m === data?.totals ? googleTs : googleTsPrevious;
+        return ts !== null && ts > 0 ? m.spend / ts : null;
+      },
+      format: formatBRL,
+    },
     { label: "Impressões", trend: "up", get: (m) => m.impressions, format: formatNumber },
     { label: "Cliques", trend: "up", get: (m) => m.linkClicks, format: formatNumber },
     { label: "CTR", trend: "up", get: (m) => m.ctrLink, format: formatRate },
@@ -3395,23 +3451,24 @@ function GoogleAdsSection({
     );
   };
 
-  const platforms: { name: string; m: Metrics }[] = data
+  const metaTs = leads ? leads.totals.tsPaid - leads.totals.tsGoogle : null;
+  const platforms: { name: string; m: Metrics; ts: number | null }[] = data
     ? [
-        { name: "Meta Ads", m: meta },
-        { name: "Google Ads", m: data.totals },
+        { name: "Meta Ads", m: meta, ts: metaTs },
+        { name: "Google Ads", m: data.totals, ts: googleTs },
       ]
     : [];
   const sum = (get: (m: Metrics) => number) => platforms.reduce((s, p) => s + get(p.m), 0);
   const totalSpend = sum((m) => m.spend);
-  const totalLeads = sum((m) => m.conversations);
+  const totalLeads: number | null = leads ? (metaTs ?? 0) + (googleTs ?? 0) : null;
   const totalImpressions = sum((m) => m.impressions);
   const totalClicks = sum((m) => m.linkClicks);
   const platformRows = [
     ...platforms.map((p) => ({
       name: p.name,
       spend: p.m.spend,
-      leads: p.m.conversations,
-      cost: p.m.costPerConversation,
+      leads: p.ts,
+      cost: p.ts !== null && p.ts > 0 ? p.m.spend / p.ts : null,
       impressions: p.m.impressions,
       clicks: p.m.linkClicks,
       ctr: p.m.ctrLink,
@@ -3420,7 +3477,7 @@ function GoogleAdsSection({
       name: "Total",
       spend: totalSpend,
       leads: totalLeads,
-      cost: totalLeads > 0 ? totalSpend / totalLeads : null,
+      cost: totalLeads !== null && totalLeads > 0 ? totalSpend / totalLeads : null,
       impressions: totalImpressions,
       clicks: totalClicks,
       ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : null,
@@ -3431,7 +3488,7 @@ function GoogleAdsSection({
     <div>
       <SectionTitle
         icon={<GoogleAdsLogo />}
-        note="Campanhas de captação do LI 35 no Google Ads. Leads são as conversões registradas pelo Google."
+        note="Campanhas de captação do LI 35 no Google Ads. Leads TS são as inscrições da planilha com a UTM do Google (yt-paid-hot) de quem já tem a Silhouette."
       >
         Google Ads
       </SectionTitle>
@@ -3499,7 +3556,7 @@ function GoogleAdsSection({
             </div>
           )}
 
-          <SectionTitle note="Soma das duas plataformas no período. O custo por lead do total é o investimento somado dividido pelos leads somados.">
+          <SectionTitle note="Soma das duas plataformas no período. Leads TS vêm da planilha, pela UTM de cada plataforma; o custo por lead TS do total é o investimento somado dividido pelos leads TS somados.">
             Meta Ads + Google Ads
           </SectionTitle>
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -3508,8 +3565,8 @@ function GoogleAdsSection({
                 <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
                   <th className="px-2.5 py-2.5 text-left">Plataforma</th>
                   <th className="px-2.5 py-2.5 text-center">Valor Investido</th>
-                  <th className="px-2.5 py-2.5 text-center">Leads</th>
-                  <th className="px-2.5 py-2.5 text-center">Custo por Lead</th>
+                  <th className="px-2.5 py-2.5 text-center">Leads TS</th>
+                  <th className="px-2.5 py-2.5 text-center">Custo por Lead TS</th>
                   <th className="px-2.5 py-2.5 text-center">Impressões</th>
                   <th className="px-2.5 py-2.5 text-center">Cliques</th>
                   <th className="px-2.5 py-2.5 text-center">CTR</th>
@@ -3537,8 +3594,6 @@ function GoogleAdsSection({
       )}
 
       <TsLeadsSection
-        range={range}
-        refreshKey={refreshKey}
         spend={meta.spend + (data?.totals.spend ?? 0)}
         metaSpend={meta.spend}
         googleSpend={data?.totals.spend ?? 0}
@@ -3548,6 +3603,8 @@ function GoogleAdsSection({
         metaAds={metaAds}
         googleAdsets={data?.levels.adsets ?? []}
         googleAds={data?.levels.ads ?? []}
+        leads={leads}
+        leadsError={leadsError}
         previousSpend={
           metaPrevious ? metaPrevious.spend + (data?.previousTotals.spend ?? 0) : null
         }
