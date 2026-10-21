@@ -946,6 +946,21 @@ export async function GET(request: Request) {
       reachByLive.set(live, (reachByLive.get(live) ?? 0) + (campaignReach.get(id) ?? 0));
       groupOfLive.set(live, account.campaigns[id]);
     }
+    // Toda live que já teve campanha entra na lista, mesmo sem veiculação no período
+    // (aparece zerada), para o filtro não mostrar só as mais recentes.
+    const liveTags: Record<string, string[]> = {};
+    for (const campaign of campaigns) {
+      const live = liveTagOf(campaign.name);
+      if (!live) continue;
+      const group = account.campaigns[campaign.id];
+      groupOfLive.set(live, group);
+      if (!byLiveAgg.has(live)) byLiveAgg.set(live, { ...EMPTY_META_AGG });
+      const list = (liveTags[group] ??= []);
+      if (!list.includes(live)) list.push(live);
+    }
+    for (const list of Object.values(liveTags)) {
+      list.sort((a, b) => parseInt(b.slice(2), 10) - parseInt(a.slice(2), 10));
+    }
     for (const [id, agg] of previousCampaignTotals) {
       const live = liveOf.get(id);
       if (live) addToAgg(previousByLiveAgg, live, agg);
@@ -986,6 +1001,7 @@ export async function GET(request: Request) {
         previousTotals: derive(previousAccountTotals),
         previousByCampaign,
         byLive,
+        liveTags,
         previousByLive,
         dailyByLive,
         levels: {

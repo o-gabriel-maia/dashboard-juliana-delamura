@@ -103,6 +103,8 @@ type DashboardData = {
   previousByCampaign: Record<string, Metrics>;
   // Totais, período anterior e série diária de cada live (chave = número da live).
   byLive?: Record<string, Row>;
+  // Todas as lives de cada aba, da mais recente para a mais antiga.
+  liveTags?: Record<string, string[]>;
   previousByLive?: Record<string, Metrics>;
   dailyByLive?: Record<string, DailyPoint[]>;
   // `campaigns` traz uma linha por produto (a aba); `realCampaigns`, as campanhas
@@ -2022,12 +2024,7 @@ export default function Home() {
   const [liveByPanel, setLiveByPanel] = useState<Record<string, string>>({});
   const liveOptions = useMemo(() => {
     if (!activeCampaign || (activeKind !== "lsq" && activeKind !== "lsd")) return [];
-    const lives = new Set(
-      (data?.levels.realCampaigns ?? [])
-        .filter((r) => r.campaignId === activeCampaign.id && r.live)
-        .map((r) => r.live as string),
-    );
-    return [...lives].sort((a, b) => parseInt(b.slice(2), 10) - parseInt(a.slice(2), 10));
+    return data?.liveTags?.[activeCampaign.id] ?? [];
   }, [data, activeCampaign, activeKind]);
   const chosenLive = activeCampaign ? (liveByPanel[activeCampaign.id] ?? "") : "";
   const selectedLive = liveOptions.includes(chosenLive) ? chosenLive : "";
@@ -2048,9 +2045,11 @@ export default function Home() {
     : activeCampaign
       ? data?.previousByCampaign[activeCampaign.id]
       : undefined;
-  const scopeDaily: DailyPoint[] =
-    (selectedLive ? data?.dailyByLive?.[selectedLive] : undefined) ??
-    (activeCampaign ? (data?.dailyByCampaign[activeCampaign.id] ?? []) : []);
+  const scopeDaily: DailyPoint[] = selectedLive
+    ? (data?.dailyByLive?.[selectedLive] ?? [])
+    : activeCampaign
+      ? (data?.dailyByCampaign[activeCampaign.id] ?? [])
+      : [];
   const inScope = (r: Row) =>
     !!activeCampaign && r.campaignId === activeCampaign.id && (!selectedLive || r.live === selectedLive);
   const activeResult = KINDS[activeKind].result;
@@ -2586,6 +2585,7 @@ export default function Home() {
               return (
                 <KpiGrid
                   kind={activeKind}
+                  showPageRates={activeKind !== "lsq" && activeKind !== "lsd"}
                   totals={useTs ? withTsLeads(scoped, metaTs) : scoped}
                   previous={useTs && previous ? withTsLeads(previous, metaTsPrevious) : previous}
                   previousRange={data.previousRange}
