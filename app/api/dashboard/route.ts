@@ -48,6 +48,8 @@ type DashboardRow = {
   campaignId: string;
   name: string;
   parent?: string;
+  // Número da live (ex.: LS205_Q), lido do nome da campanha; só nas abas de Live Secreta.
+  live?: string;
   previewUrl?: string;
   thumbnailUrl?: string;
   imageUrl?: string;
@@ -411,16 +413,17 @@ async function fetchBreakdown(
   range: DateRange,
   breakdowns: string,
   labelOf: (row: Record<string, string>) => string,
-  sortByLabel = false
+  sortByLabel = false,
+  campaignIds?: string[]
 ): Promise<Slice[]> {
   try {
     type Row = Record<string, string> & { results?: MetaResult[] };
     const rows = await metaGet<Row>(account, "insights", {
       level: "campaign",
-      fields: "campaign_id,results",
+      fields: "campaign_id,results,actions",
       breakdowns,
       filtering: JSON.stringify([
-        { field: "campaign.id", operator: "IN", value: account.stores[group] },
+        { field: "campaign.id", operator: "IN", value: campaignIds ?? account.stores[group] },
       ]),
       time_range: JSON.stringify(range),
       limit: "500",
@@ -445,9 +448,14 @@ async function fetchBreakdown(
   }
 }
 
-async function fetchBreakdowns(account: Account, group: GroupKey, range: DateRange) {
+async function fetchBreakdowns(
+  account: Account,
+  group: GroupKey,
+  range: DateRange,
+  campaignIds?: string[]
+) {
   const empty = { age: [], gender: [], placement: [], device: [] } as Record<string, Slice[]>;
-  if (account.stores[group].length === 0) return [group, empty] as const;
+  if ((campaignIds ?? account.stores[group]).length === 0) return [group, empty] as const;
   const [age, gender, placement, device] = await Promise.all([
     fetchBreakdown(
       account,
@@ -455,17 +463,39 @@ async function fetchBreakdowns(account: Account, group: GroupKey, range: DateRan
       range,
       "age",
       (r) => (/^\d/.test(r.age) ? `${r.age} anos` : "Não informado"),
-      true
+      true,
+      campaignIds
     ),
-    fetchBreakdown(account, group, range, "gender", (r) => GENDER_LABELS[r.gender] ?? r.gender),
-    fetchBreakdown(account, group, range, "publisher_platform,platform_position", (r) =>
-      [
-        POSITION_LABELS[r.platform_position] ?? r.platform_position,
-        PLATFORM_LABELS[r.publisher_platform] ?? r.publisher_platform,
-      ].join(" · ")
+    fetchBreakdown(
+      account,
+      group,
+      range,
+      "gender",
+      (r) => GENDER_LABELS[r.gender] ?? r.gender,
+      false,
+      campaignIds
     ),
-    fetchBreakdown(account, group, range, "impression_device", (r) =>
-      deviceLabel(r.impression_device)
+    fetchBreakdown(
+      account,
+      group,
+      range,
+      "publisher_platform,platform_position",
+      (r) =>
+        [
+          POSITION_LABELS[r.platform_position] ?? r.platform_position,
+          PLATFORM_LABELS[r.publisher_platform] ?? r.publisher_platform,
+        ].join(" · "),
+      false,
+      campaignIds
+    ),
+    fetchBreakdown(
+      account,
+      group,
+      range,
+      "impression_device",
+      (r) => deviceLabel(r.impression_device),
+      false,
+      campaignIds
     ),
   ]);
   return [group, { age, gender, placement, device }] as const;
@@ -741,13 +771,16 @@ function derive(agg: MetaAgg) {
   };
 }
 
+const liveTagOf = (name: string) => /^\[(LS\d+_[QD])/.exec(name)?.[1];
+
 function buildRows(
   aggById: Map<string, MetaAgg>,
   names: Map<string, string>,
   campaignOf: Map<string, string>,
   parents: Map<string, string> | undefined,
   entities: Map<string, EntityInfo>,
-  reachById?: Map<string, number>
+  reachById?: Map<string, number>,
+  liveOf?: Map<string, string>
 ): DashboardRow[] {
   const rows: DashboardRow[] = [];
   for (const [id, agg] of aggById) {
@@ -757,6 +790,7 @@ function buildRows(
       campaignId: campaignOf.get(id) || id,
       name: names.get(id) || id,
       parent: parents?.get(id),
+      live: liveOf?.get(id),
       status: entities.get(id)?.status,
       previewUrl: entities.get(id)?.previewUrl,
       thumbnailUrl: entities.get(id)?.thumbnailUrl,
@@ -792,7 +826,11 @@ export async function GET(request: Request) {
     if (onlyBreakdown) {
       const group = GROUPS.find((g) => g.key === onlyBreakdown)?.key;
       if (!group) return NextResponse.json({ error: "Aba desconhecida." }, { status: 400 });
-      const [key, value] = await fetchBreakdowns(account, group, range);
+      const live = searchParams.get("live");
+      const campaignIds = live
+        ? account.list.filter((c) => liveTagOf(c.name) === live).map((c) => c.id)
+        : undefined;
+      const [key, value] = await fetchBreakdowns(account, group, range, campaignIds);
       return NextResponse.json({ range, resultBreakdowns: { [key]: value } }, { headers: cacheHeaders });
     }
     const campaigns = account.list;
@@ -825,11 +863,15 @@ export async function GET(request: Request) {
     const byAdset = new Map<string, MetaAgg>();
     const byCampaign = new Map<string, MetaAgg>();
     const campaignEntities = new Map<string, { status?: string }>();
+    // Número da live de cada campanha, conjunto e anúncio (só as campanhas de Live Secreta têm).
+    const liveOf = new Map<string, string>();
 
     // Campanhas ativas entram sempre (mesmo sem veiculação no período); as
     // pausadas/antigas só aparecem se tiverem gasto no período selecionado.
     for (const campaign of campaigns) {
       groupOf.set(campaign.id, account.campaigns[campaign.id]);
+      const campaignLive = liveTagOf(campaign.name);
+      if (campaignLive) liveOf.set(campaign.id, campaignLive);
       if (campaign.effective_status !== "ACTIVE") continue;
       names.set(campaign.id, campaign.name);
       byCampaign.set(campaign.id, { ...EMPTY_META_AGG });
@@ -851,6 +893,12 @@ export async function GET(request: Request) {
       }
       groupOf.set(row.ad_id, group);
       groupOf.set(row.adset_id, group);
+      const rowLive = liveTagOf(row.campaign_name);
+      if (rowLive) {
+        liveOf.set(row.ad_id, rowLive);
+        liveOf.set(row.adset_id, rowLive);
+        liveOf.set(row.campaign_id, rowLive);
+      }
       adParents.set(row.ad_id, row.adset_name);
       addToAgg(byAd, row.ad_id, delta);
       addToAgg(byAdset, row.adset_id, delta);
@@ -885,6 +933,40 @@ export async function GET(request: Request) {
     }
     const reachByGroup = new Map(groupKeys.map((g) => [g as string, groupReach.get(g)?.reach ?? 0]));
 
+    // Totais, período anterior e evolução diária de cada live, para o filtro por número da live.
+    const byLiveAgg = new Map<string, MetaAgg>();
+    const previousByLiveAgg = new Map<string, MetaAgg>();
+    const dailyByLiveAgg = new Map<string, Map<string, MetaAgg>>();
+    const reachByLive = new Map<string, number>();
+    const groupOfLive = new Map<string, string>();
+    for (const [id, agg] of byCampaign) {
+      const live = liveOf.get(id);
+      if (!live) continue;
+      addToAgg(byLiveAgg, live, agg);
+      reachByLive.set(live, (reachByLive.get(live) ?? 0) + (campaignReach.get(id) ?? 0));
+      groupOfLive.set(live, account.campaigns[id]);
+    }
+    for (const [id, agg] of previousCampaignTotals) {
+      const live = liveOf.get(id);
+      if (live) addToAgg(previousByLiveAgg, live, agg);
+    }
+    for (const [id, days] of daily.byCampaign) {
+      const live = liveOf.get(id);
+      if (!live) continue;
+      const target = dailyByLiveAgg.get(live) ?? new Map<string, MetaAgg>();
+      for (const [date, agg] of days) addToAgg(target, date, agg);
+      dailyByLiveAgg.set(live, target);
+    }
+    const liveNames = new Map([...byLiveAgg.keys()].map((live) => [live, live]));
+    const byLive: Record<string, DashboardRow> = {};
+    for (const row of buildRows(byLiveAgg, liveNames, groupOfLive, undefined, new Map(), reachByLive)) {
+      byLive[row.id] = { ...row, live: row.id };
+    }
+    const previousByLive: Record<string, ReturnType<typeof derive>> = {};
+    for (const [live, agg] of previousByLiveAgg) previousByLive[live] = derive(agg);
+    const dailyByLive: Record<string, ReturnType<typeof buildDailyPoints>> = {};
+    for (const [live, days] of dailyByLiveAgg) dailyByLive[live] = buildDailyPoints(days, range);
+
     const dailyByCampaign: Record<string, ReturnType<typeof buildDailyPoints>> = {};
     const previousByCampaign: Record<string, ReturnType<typeof derive>> = {};
     for (const group of groupKeys) {
@@ -903,11 +985,22 @@ export async function GET(request: Request) {
         totals: derive(accountTotals),
         previousTotals: derive(previousAccountTotals),
         previousByCampaign,
+        byLive,
+        previousByLive,
+        dailyByLive,
         levels: {
           campaigns: buildRows(byGroup, names, groupOf, undefined, groupEntities, reachByGroup),
-          realCampaigns: buildRows(byCampaign, names, groupOf, undefined, campaignEntities, campaignReach),
-          adsets: buildRows(byAdset, names, groupOf, undefined, adsetEntities, adsetReach),
-          ads: buildRows(byAd, names, groupOf, adParents, adEntities),
+          realCampaigns: buildRows(
+            byCampaign,
+            names,
+            groupOf,
+            undefined,
+            campaignEntities,
+            campaignReach,
+            liveOf
+          ),
+          adsets: buildRows(byAdset, names, groupOf, undefined, adsetEntities, adsetReach, liveOf),
+          ads: buildRows(byAd, names, groupOf, adParents, adEntities, undefined, liveOf),
         },
         dailyChart: buildDailyPoints(daily.total, range),
         dailyByCampaign,

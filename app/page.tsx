@@ -84,6 +84,8 @@ type Row = Metrics & {
   campaignId: string;
   name: string;
   parent?: string;
+  // Número da live (ex.: LS205_Q), nas abas de Live Secreta.
+  live?: string;
   previewUrl?: string;
   thumbnailUrl?: string;
   imageUrl?: string;
@@ -99,6 +101,10 @@ type DashboardData = {
   totals: Metrics;
   previousTotals: Metrics;
   previousByCampaign: Record<string, Metrics>;
+  // Totais, período anterior e série diária de cada live (chave = número da live).
+  byLive?: Record<string, Row>;
+  previousByLive?: Record<string, Metrics>;
+  dailyByLive?: Record<string, DailyPoint[]>;
   // `campaigns` traz uma linha por produto (a aba); `realCampaigns`, as campanhas
   // de verdade dentro de cada produto.
   levels: { campaigns: Row[]; realCampaigns?: Row[]; adsets: Row[]; ads: Row[] };
@@ -119,7 +125,7 @@ type DashboardData = {
 const RESUMO_PANEL = "resumo";
 type SortKey = keyof Omit<
   Row,
-  "id" | "campaignId" | "parent" | "previewUrl" | "thumbnailUrl" | "imageUrl"
+  "id" | "campaignId" | "parent" | "live" | "previewUrl" | "thumbnailUrl" | "imageUrl"
 >;
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -300,6 +306,41 @@ function DateRangeFilter({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Filtro pelo número da live (abas de Live Secreta): vale na hora, sem "Aplicar filtros".
+function LiveFilter({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  onChange: (live: string) => void;
+}) {
+  return (
+    <div className="flex flex-col items-start gap-1.5 sm:items-end">
+      <span className="text-xs font-semibold text-gray-500">Live</span>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-4 pr-10 text-sm font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">Todas as lives</option>
+          {options.map((live) => (
+            <option key={live} value={live}>
+              {live}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          size={16}
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+        />
+      </div>
     </div>
   );
 }
@@ -1288,12 +1329,14 @@ function PanelHeader({
   filter,
   onApplyFilter,
   loading,
+  liveFilter,
 }: {
   title: string;
   description: string;
   filter: FilterState;
   onApplyFilter: (filter: FilterState) => void;
   loading: boolean;
+  liveFilter?: { value: string; options: string[]; onChange: (live: string) => void };
 }) {
   return (
     <div className="mb-6 flex flex-col gap-4 border-b border-gray-200 pb-3 xl:flex-row xl:items-start xl:justify-between">
@@ -1302,6 +1345,7 @@ function PanelHeader({
         <p className="mt-1 max-w-2xl text-sm text-gray-500">{description}</p>
       </div>
       <div className="flex flex-shrink-0 flex-wrap items-end gap-4 xl:justify-end">
+        {liveFilter && <LiveFilter {...liveFilter} />}
         <DateRangeFilter applied={filter} onApply={onApplyFilter} loading={loading} />
       </div>
     </div>
@@ -1974,6 +2018,41 @@ export default function Home() {
     : undefined;
   const activeCampaign = campaignTabs.find((c) => c.id === panel);
   const activeKind = kindOf(activeCampaign?.name ?? "");
+  // Filtro por número da live, só nas abas de Live Secreta; cada aba lembra a sua escolha.
+  const [liveByPanel, setLiveByPanel] = useState<Record<string, string>>({});
+  const liveOptions = useMemo(() => {
+    if (!activeCampaign || (activeKind !== "lsq" && activeKind !== "lsd")) return [];
+    const lives = new Set(
+      (data?.levels.realCampaigns ?? [])
+        .filter((r) => r.campaignId === activeCampaign.id && r.live)
+        .map((r) => r.live as string),
+    );
+    return [...lives].sort((a, b) => parseInt(b.slice(2), 10) - parseInt(a.slice(2), 10));
+  }, [data, activeCampaign, activeKind]);
+  const chosenLive = activeCampaign ? (liveByPanel[activeCampaign.id] ?? "") : "";
+  const selectedLive = liveOptions.includes(chosenLive) ? chosenLive : "";
+  const liveFilter =
+    activeCampaign && liveOptions.length > 0
+      ? {
+          value: selectedLive,
+          options: liveOptions,
+          onChange: (live: string) =>
+            setLiveByPanel((current) => ({ ...current, [activeCampaign.id]: live })),
+        }
+      : undefined;
+  // Com uma live escolhida, cards, gráficos e tabelas passam a mostrar só ela.
+  const scopeRow: Row | undefined =
+    (selectedLive ? data?.byLive?.[selectedLive] : undefined) ?? activeCampaign;
+  const scopePrevious: Metrics | undefined = selectedLive
+    ? data?.previousByLive?.[selectedLive]
+    : activeCampaign
+      ? data?.previousByCampaign[activeCampaign.id]
+      : undefined;
+  const scopeDaily: DailyPoint[] =
+    (selectedLive ? data?.dailyByLive?.[selectedLive] : undefined) ??
+    (activeCampaign ? (data?.dailyByCampaign[activeCampaign.id] ?? []) : []);
+  const inScope = (r: Row) =>
+    !!activeCampaign && r.campaignId === activeCampaign.id && (!selectedLive || r.live === selectedLive);
   const activeResult = KINDS[activeKind].result;
   const activeUnit = KINDS[activeKind].unit;
   // Quebras por idade, gênero, posicionamento e dispositivo: só da aba aberta,
@@ -1982,23 +2061,25 @@ export default function Home() {
     group: string;
     value: NonNullable<DashboardData["resultBreakdowns"]>[string];
   }>();
-  const breakdownGroup = activeCampaign?.id;
+  const breakdownGroup = activeCampaign ? `${activeCampaign.id}|${selectedLive}` : undefined;
   const rangeSince = data?.range.since;
   const rangeUntil = data?.range.until;
   const updatedAt = data?.updatedAt;
   useEffect(() => {
     if (!breakdownGroup || !rangeSince || !rangeUntil) return;
     let cancelled = false;
+    const [groupId, liveTag] = breakdownGroup.split("|");
     const params = new URLSearchParams({
-      breakdowns: breakdownGroup,
+      breakdowns: groupId,
       since: rangeSince,
       until: rangeUntil,
       v: updatedAt ?? "",
     });
+    if (liveTag) params.set("live", liveTag);
     fetch(`/api/dashboard?${params}`)
       .then((res) => res.json())
       .then((json) => {
-        const value = json?.resultBreakdowns?.[breakdownGroup];
+        const value = json?.resultBreakdowns?.[groupId];
         if (!cancelled && value) setBreakdownData({ group: breakdownGroup, value });
       })
       .catch(() => {});
@@ -2483,6 +2564,7 @@ export default function Home() {
               title={campaignLabel(activeCampaign.name)}
               description={KINDS[activeKind].description}
               {...headerProps}
+              liveFilter={liveFilter}
             />
             {activeKind === "li35" && (
               <SectionTitle
@@ -2499,11 +2581,12 @@ export default function Home() {
               const metaTsPrevious = leads
                 ? leads.previousTotals.tsPaid - leads.previousTotals.tsGoogle
                 : 0;
-              const previous = data.previousByCampaign[activeCampaign.id];
+              const scoped = scopeRow ?? activeCampaign;
+              const previous = scopePrevious;
               return (
                 <KpiGrid
                   kind={activeKind}
-                  totals={useTs ? withTsLeads(activeCampaign, metaTs) : activeCampaign}
+                  totals={useTs ? withTsLeads(scoped, metaTs) : scoped}
                   previous={useTs && previous ? withTsLeads(previous, metaTsPrevious) : previous}
                   previousRange={data.previousRange}
                   resultLabel={useTs ? "Leads TS" : undefined}
@@ -2514,7 +2597,7 @@ export default function Home() {
             {(() => {
               // LI35: leads e custo por lead por dia viram TS, pela planilha (Meta = fb-paid-*).
               const useTs = activeKind === "li35" && !!leads;
-              const points = data.dailyByCampaign[activeCampaign.id] ?? [];
+              const points = scopeDaily;
               const daily = useTs
                 ? points.map((p) => {
                     const day = leads?.daily.find((d) => d.date === p.date);
@@ -2539,24 +2622,22 @@ export default function Home() {
             <LevelTable
               kind={activeKind}
               title="Campanhas"
-              totalReach={activeCampaign.reach}
-              rows={(data.levels.realCampaigns ?? []).filter(
-                (r) => r.campaignId === activeCampaign.id,
-              )}
+              totalReach={(scopeRow ?? activeCampaign).reach}
+              rows={(data.levels.realCampaigns ?? []).filter(inScope)}
               nameLabel="Campanha"
             />
             <LevelTable
               kind={activeKind}
               title="Conjuntos de anúncios"
-              totalReach={activeCampaign.reach}
-              rows={data.levels.adsets.filter((r) => r.campaignId === activeCampaign.id)}
+              totalReach={(scopeRow ?? activeCampaign).reach}
+              rows={data.levels.adsets.filter(inScope)}
               nameLabel="Conjunto"
             />
             <LevelTable
               kind={activeKind}
               title="Anúncios"
-              totalReach={activeCampaign.reach}
-              rows={data.levels.ads.filter((r) => r.campaignId === activeCampaign.id)}
+              totalReach={(scopeRow ?? activeCampaign).reach}
+              rows={data.levels.ads.filter(inScope)}
               nameLabel="Anúncio"
               showPreviewLink
               videoMetrics={activeKind === "li35"}
@@ -2569,7 +2650,7 @@ export default function Home() {
                 )}
               />
             )}
-            {breakdowns?.age && breakdowns.age.length > 0 && activeCampaign.conversations > 0 && (
+            {breakdowns?.age && breakdowns.age.length > 0 && (scopeRow ?? activeCampaign).conversations > 0 && (
               <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
                 <DonutChart
                   title={`${activeResult} por Idade`}
