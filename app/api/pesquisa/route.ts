@@ -4,12 +4,15 @@ export const dynamic = "force-dynamic";
 
 type DateRange = { since: string; until: string };
 
-// Aba "Respostas pesquisa" da planilha de resultado da pesquisa do LI35: uma
+// Aba "Respostas pesquisa" da planilha de resultado da pesquisa de cada edição (LI35, LI36): uma
 // linha por resposta. A planilha está com compartilhamento por link, então a
 // leitura não precisa de credencial. O e-mail (colunas A e X da pesquisa e A dos
 // leads) é lido só aqui no servidor, para ligar cada resposta ao público (conjunto
 // de anúncios) do lead, e nunca sai na resposta da rota.
-const SHEET_ID = "1zcEFVG7Lr9bKlh_pkLiSYYjByI9iyabSNLciQrvg8iM";
+const SHEET_IDS: Record<string, string> = {
+  li35: "1zcEFVG7Lr9bKlh_pkLiSYYjByI9iyabSNLciQrvg8iM",
+  li36: "1PM0HAccbA_9C2Eh2C3x2FepGmGFCI9zs89rXS2F_uQM",
+};
 const TAB = "Respostas pesquisa";
 const LEADS_TAB = "Leads C/UTM";
 const DEFAULT_RANGE_DAYS = 7;
@@ -99,9 +102,9 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
-async function fetchRange(range: string, tab = TAB) {
+async function fetchRange(sheetId: string, range: string, tab = TAB) {
   const url =
-    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv` +
+    `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv` +
     `&sheet=${encodeURIComponent(tab)}&range=${range}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error("Não foi possível ler a planilha da pesquisa.");
@@ -158,18 +161,19 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const range = resolveRange(searchParams.get("since"), searchParams.get("until"));
     const previous = previousRange(range);
+    const sheetId = SHEET_IDS[searchParams.get("edition") ?? "li35"] ?? SHEET_IDS.li35;
     const fonte = searchParams.get("fonte") ?? "";
     const campanha = searchParams.get("campanha") ?? "";
     const publico = searchParams.get("publico") ?? "";
     const anuncio = searchParams.get("anuncio") ?? "";
 
     const [answers, utms, surveyEmail, surveyEmail2, leadEmail, leadRest] = await Promise.all([
-      fetchRange("B:W"),
-      fetchRange("Z:AB"),
-      fetchRange("A:A"),
-      fetchRange("X:X"),
-      fetchRange("A:A", LEADS_TAB),
-      fetchRange("E:J", LEADS_TAB),
+      fetchRange(sheetId, "B:W"),
+      fetchRange(sheetId, "Z:AB"),
+      fetchRange(sheetId, "A:A"),
+      fetchRange(sheetId, "X:X"),
+      fetchRange(sheetId, "A:A", LEADS_TAB),
+      fetchRange(sheetId, "E:J", LEADS_TAB),
     ]);
     const head = (answers[0] ?? []).map((h) => h.trim().toLowerCase());
     const col = (re: string) => head.findIndex((h) => h.startsWith(re));

@@ -88,8 +88,8 @@ type DateRange = { since: string; until: string };
 // pelo nome: todas as tags da aba precisam aparecer. Campanha nova entra
 // sozinha. O "resultado" (campo `conversations`) é o que a Meta mostra na
 // coluna Resultados do Gerenciador: leads (formulário nativo ou pixel). A parte
-// do Google Ads do LI35 vem de /api/google.
-type GroupKey = "lsq" | "lsd" | "promo" | "li35";
+// do Google Ads do LI35 e do LI36 vem de /api/google.
+type GroupKey = "lsq" | "lsd" | "promo" | "li35" | "li36";
 const AD_ACCOUNT_ID = "519177155682126"; // Silhouette Experts
 // `search` são os trechos pedidos à Meta; `prefix`, quando existe, confere o
 // começo do nome no lugar das tags.
@@ -114,6 +114,7 @@ const GROUPS: {
     names: ["[LOJA] [FORM] PROMO DIÁRIA"],
   },
   { key: "li35", name: "Captação LI35", tags: ["[LI35]"] },
+  { key: "li36", name: "Captação LI36", tags: ["[LI36]_[CAPTURA]_[LEADS]"], search: ["LI36"] },
 ];
 type CampaignInfo = { id: string; name: string; effective_status?: string };
 // `campaigns` liga cada campanha ao produto dela; `stores` lista as campanhas de
@@ -630,7 +631,7 @@ async function resolveAccount(): Promise<Account> {
     id: AD_ACCOUNT_ID,
     campaigns: {},
     formCampaigns: {},
-    stores: { lsq: [], lsd: [], promo: [], li35: [] },
+    stores: { lsq: [], lsd: [], promo: [], li35: [], li36: [] },
     list: [],
   };
   const searchOf = (group: (typeof GROUPS)[number]) =>

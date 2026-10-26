@@ -4,12 +4,15 @@ export const dynamic = "force-dynamic";
 
 type DateRange = { since: string; until: string };
 
-// Planilha de resultado da pesquisa do LI35, aba "Leads C/UTM": uma linha por
+// Planilha de resultado da pesquisa de cada edição (LI35, LI36), aba "Leads C/UTM": uma linha por
 // inscrição, com a data, a resposta "Você já tem Silhouette?" (Sim = TS, Não =
 // NTS) e a UTM de origem. A planilha está com compartilhamento por link, então a
 // leitura não precisa de credencial. Só as colunas E a J são lidas (sem e-mail
 // nem telefone).
-const SHEET_ID = "1zcEFVG7Lr9bKlh_pkLiSYYjByI9iyabSNLciQrvg8iM";
+const SHEET_IDS: Record<string, string> = {
+  li35: "1zcEFVG7Lr9bKlh_pkLiSYYjByI9iyabSNLciQrvg8iM",
+  li36: "1PM0HAccbA_9C2Eh2C3x2FepGmGFCI9zs89rXS2F_uQM",
+};
 const TAB = "Leads C/UTM";
 // Origem de tráfego pago: o nome da UTM de origem tem "paid". Meta Ads usa
 // fb-paid-hot e fb-paid-cold; o Google Ads (YouTube) usa yt-paid-hot.
@@ -129,9 +132,10 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const range = resolveRange(searchParams.get("since"), searchParams.get("until"));
     const previous = previousRange(range);
+    const sheetId = SHEET_IDS[searchParams.get("edition") ?? "li35"] ?? SHEET_IDS.li35;
 
     const url =
-      `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv` +
+      `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv` +
       `&sheet=${encodeURIComponent(TAB)}&range=E:J`;
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("Não foi possível ler a planilha de leads.");

@@ -7,8 +7,12 @@ type DateRange = { since: string; until: string };
 // Conta do Google Ads da Silhouette Experts (acessada direto, sem MCC).
 const CUSTOMER_ID = "7432481101";
 const LOGIN_CUSTOMER_ID = "7432481101";
-// Entram as campanhas cujo nome tem todos esses trechos (captação do LI35).
-const CAMPAIGN_TAGS = ["LI35"];
+// Entram as campanhas cujo nome tem todos esses trechos, por edição do lançamento
+// (`?edition=li35` ou `li36`; sem o parâmetro vale o LI35).
+const EDITION_TAGS: Record<string, string[]> = {
+  li35: ["LI35"],
+  li36: ["[LI36]_[CAPTURA]_[GG_ADS]"],
+};
 const API_URL = `https://googleads.googleapis.com/v25/customers/${CUSTOMER_ID}/googleAds:searchStream`;
 const DEFAULT_RANGE_DAYS = 7;
 const MAX_RANGE_DAYS = 370;
@@ -197,6 +201,7 @@ export async function GET(request: Request) {
     const range = resolveRange(searchParams.get("since"), searchParams.get("until"));
     const previous = previousRange(range);
     const token = await accessToken();
+    const CAMPAIGN_TAGS = EDITION_TAGS[searchParams.get("edition") ?? "li35"] ?? EDITION_TAGS.li35;
 
     // No LIKE do Google, colchete literal vai entre colchetes.
     const nameFilter = CAMPAIGN_TAGS.map(

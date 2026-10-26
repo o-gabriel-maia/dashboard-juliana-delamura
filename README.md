@@ -1,6 +1,6 @@
 # Dashboard Silhouette Experts
 
-Dashboard de acompanhamento das campanhas de captação de leads da Silhouette Experts no Meta Ads e, no LI35, também no Google Ads.
+Dashboard de acompanhamento das campanhas de captação de leads da Silhouette Experts no Meta Ads e, no LI35 e no LI36, também no Google Ads.
 
 Versão publicada: https://dashboard-juliana-delamura.vercel.app
 
@@ -11,6 +11,7 @@ Versão publicada: https://dashboard-juliana-delamura.vercel.app
 - **Live Secreta Domingo**: campanhas com `LIVE_SECRETA` no nome e código `[LS###_D…]` (só Meta Ads). Resultado: leads.
 - **Captação Promo Diária**: campanhas com `PROMO_DIARIA` no nome e a campanha `[LOJA] [FORM] Promo Diária` (só Meta Ads). Resultado: leads.
 - **Captação LI35**: campanhas com `[LI35]` no nome. Meta Ads primeiro e Google Ads depois, com um total das duas plataformas no fim.
+- **Captação LI36**: igual à do LI35. Meta Ads com `[LI36]_[CAPTURA]_[LEADS]` no nome e Google Ads com `[LI36]_[CAPTURA]_[GG_ADS]`; leads TS/NTS e pesquisa vêm da planilha do LI36 (`/api/leads`, `/api/google` e `/api/pesquisa` recebem `?edition=li36`; sem o parâmetro valem os dados do LI35). A planilha do LI36 precisa estar compartilhada por link (Leitor), como a do LI35.
 
 Campanhas de formulário nativo (`FORM_NATIVO` ou `[FORM]` no nome) ficam sem as taxas da página. Todas as tabelas têm filtro de status e busca por nome.
 

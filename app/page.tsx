@@ -357,7 +357,7 @@ type NavIcon = ComponentType<{ size?: number; strokeWidth?: number }>;
 // Logos de marca não existem no lucide-react, então são SVGs próprios.
 // Cada aba é um produto, com seu "resultado" (o campo `conversations` dos dados
 // guarda esse resultado: leads ou compras) e seus textos.
-type Kind = "lsq" | "lsd" | "promo" | "li35";
+type Kind = "lsq" | "lsd" | "promo" | "li35" | "li36";
 
 const KINDS: Record<
   Kind,
@@ -412,6 +412,22 @@ const KINDS: Record<
     description:
       "Captação de leads do LI35: primeiro as campanhas do Meta Ads, depois as do Google Ads.",
   },
+  li36: {
+    tab: "Captação LI36",
+    icon: Megaphone,
+    result: "Leads",
+    cost: "Custo por Lead",
+    unit: "leads",
+    article: "os",
+    description:
+      "Captação de leads do LI36: primeiro as campanhas do Meta Ads, depois as do Google Ads.",
+  },
+};
+// Abas de captação com planilha de leads, pesquisa e Google Ads: a edição do
+// lançamento diz qual planilha e quais campanhas do Google entram.
+const EDITIONS: Partial<Record<Kind, { id: string; label: string }>> = {
+  li35: { id: "li35", label: "LI35" },
+  li36: { id: "li36", label: "LI36" },
 };
 // Todas as abas são de captação: os resumos somam os leads delas.
 const LEAD_KIND: Kind = "lsq";
@@ -422,6 +438,7 @@ function kindOf(name: string): Kind {
   if (name === KINDS.lsd.tab) return "lsd";
   if (name === KINDS.promo.tab) return "promo";
   if (name === KINDS.li35.tab) return "li35";
+  if (name === KINDS.li36.tab) return "li36";
   return "lsq";
 }
 
@@ -429,7 +446,7 @@ function kindOf(name: string): Kind {
 const STORES = ["Juliana Delamura"] as const;
 type Store = (typeof STORES)[number];
 const MULTI_STORE = (STORES as readonly string[]).length > 1;
-const KIND_ORDER: Kind[] = ["lsq", "lsd", "promo", "li35"];
+const KIND_ORDER: Kind[] = ["lsq", "lsd", "promo", "li35", "li36"];
 const STORE_COLORS: Record<Store, string> = {
   "Juliana Delamura": "#2563eb",
 };
@@ -439,6 +456,7 @@ const KIND_COLORS: Record<Kind, string> = {
   lsd: "#0891b2",
   promo: "#f59e0b",
   li35: "#7c3aed",
+  li36: "#db2777",
 };
 const storePanel = (store: Store) => `loja:${store}`;
 
@@ -532,7 +550,7 @@ const METRIC_HELP: Record<string, string> = {
   "Visualizações 100%":
     "Quantas reproduções do vídeo foram assistidas até o fim. Só vale para vídeo; imagem fica zerada.",
   "Investimento (Meta + Google)":
-    "Soma do valor investido nas campanhas do LI35 no Meta Ads e no Google Ads no período.",
+    "Soma do valor investido nas campanhas do lançamento (LI35 ou LI36) no Meta Ads e no Google Ads no período.",
   "Leads Totais (planilha)":
     "Inscrições da aba de leads da planilha no período, com os filtros escolhidos (todas as origens, não só tráfego pago).",
   "Respostas da pesquisa":
@@ -2089,32 +2107,42 @@ export default function Home() {
   const breakdowns =
     breakdownData && breakdownData.group === breakdownGroup ? breakdownData.value : undefined;
 
-  // Leads TS e NTS da planilha: só a aba do LI35 usa, e vários blocos dela dependem.
-  const [leadsState, setLeadsState] = useState<{ data?: LeadsData; error?: string }>();
-  const needsLeads = activeKind === "li35";
+  // Leads TS e NTS da planilha: só as abas de lançamento (LI35, LI36) usam, e vários
+  // blocos delas dependem. Cada edição tem a sua planilha.
+  const edition = EDITIONS[activeKind];
+  const [leadsState, setLeadsState] = useState<{ edition: string; data?: LeadsData; error?: string }>();
+  const needsLeads = !!edition;
+  const editionId = edition?.id;
   useEffect(() => {
-    if (!needsLeads || !rangeSince || !rangeUntil) return;
+    if (!needsLeads || !editionId || !rangeSince || !rangeUntil) return;
     let cancelled = false;
     const params = new URLSearchParams({
       since: rangeSince,
       until: rangeUntil,
+      edition: editionId,
       v: updatedAt ?? "",
     });
     fetch(`/api/leads?${params}`)
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok || json.error) throw new Error(json.error || "Erro ao ler a planilha de leads.");
-        if (!cancelled) setLeadsState({ data: json as LeadsData });
+        if (!cancelled) setLeadsState({ edition: editionId, data: json as LeadsData });
       })
       .catch((e) => {
-        if (!cancelled) setLeadsState((current) => ({ data: current?.data, error: friendlyError(e) }));
+        if (!cancelled)
+          setLeadsState((current) => ({
+            edition: editionId,
+            data: current?.edition === editionId ? current.data : undefined,
+            error: friendlyError(e),
+          }));
       });
     return () => {
       cancelled = true;
     };
-  }, [needsLeads, rangeSince, rangeUntil, updatedAt]);
-  const leads = leadsState?.data;
-  const leadsError = leadsState?.error;
+  }, [needsLeads, editionId, rangeSince, rangeUntil, updatedAt]);
+  const leadsOfEdition = leadsState?.edition === editionId ? leadsState : undefined;
+  const leads = leadsOfEdition?.data;
+  const leadsError = leadsOfEdition?.error;
 
   const periodLabel = data
     ? data.range.since === data.range.until
@@ -2465,7 +2493,7 @@ export default function Home() {
           <div>
             <PanelHeader
               title="Resumo Geral"
-              description="Visão consolidada das campanhas de captação das Lives Secretas de quarta e de domingo, da Promo Diária e do LI35 no Meta Ads."
+              description="Visão consolidada das campanhas de captação das Lives Secretas de quarta e de domingo, da Promo Diária, do LI35 e do LI36 no Meta Ads."
               {...headerProps}
             />
 
@@ -2477,7 +2505,7 @@ export default function Home() {
                   alcançaram <b className="text-gray-900">{formatNumber(data.totals.reach)}</b>{" "}
                   pessoas, com{" "}
                   <b className="text-gray-900">{formatNumber(data.totals.impressions)}</b>{" "}
-                  impressões. As campanhas de captação (Live Secreta de quarta e de domingo, Promo Diária e LI35) geraram{" "}
+                  impressões. As campanhas de captação (Live Secreta de quarta e de domingo, Promo Diária, LI35 e LI36) geraram{" "}
                   <b className="text-gray-900">{formatNumber(resumoTotals.conversations)}</b>{" "}
                   leads, a{" "}
                   <b className="text-gray-900">{formatBRL(resumoTotals.costPerConversation)}</b> por
@@ -2565,17 +2593,17 @@ export default function Home() {
               {...headerProps}
               liveFilter={liveFilter}
             />
-            {activeKind === "li35" && (
+            {edition && (
               <SectionTitle
                 icon={<MetaLogo />}
-                note="Campanhas de captação do LI35 no Facebook e no Instagram. Leads TS são as inscrições da planilha com a UTM do Meta (fb-paid-hot e fb-paid-cold) de quem já tem a Silhouette."
+                note={`Campanhas de captação do ${edition?.label} no Facebook e no Instagram. Leads TS são as inscrições da planilha com a UTM do Meta (fb-paid-hot e fb-paid-cold) de quem já tem a Silhouette.`}
               >
                 Meta Ads
               </SectionTitle>
             )}
             {(() => {
-              // LI35: leads e custo por lead viram TS, pela planilha (UTM fb-paid-hot e fb-paid-cold).
-              const useTs = activeKind === "li35" && !!leads;
+              // Lançamento (LI35/LI36): leads e custo por lead viram TS, pela planilha (UTM fb-paid-hot e fb-paid-cold).
+              const useTs = !!edition && !!leads;
               const metaTs = leads ? leads.totals.tsPaid - leads.totals.tsGoogle : 0;
               const metaTsPrevious = leads
                 ? leads.previousTotals.tsPaid - leads.previousTotals.tsGoogle
@@ -2595,8 +2623,8 @@ export default function Home() {
               );
             })()}
             {(() => {
-              // LI35: leads e custo por lead por dia viram TS, pela planilha (Meta = fb-paid-*).
-              const useTs = activeKind === "li35" && !!leads;
+              // Lançamento (LI35/LI36): leads e custo por lead por dia viram TS, pela planilha (Meta = fb-paid-*).
+              const useTs = !!edition && !!leads;
               const points = scopeDaily;
               const daily = useTs
                 ? points.map((p) => {
@@ -2640,7 +2668,7 @@ export default function Home() {
               rows={data.levels.ads.filter(inScope)}
               nameLabel="Anúncio"
               showPreviewLink
-              videoMetrics={activeKind === "li35"}
+              videoMetrics={!!edition}
             />
             {(activeKind === "lsq" || activeKind === "lsd") && (
               <LivesComparison
@@ -2682,8 +2710,11 @@ export default function Home() {
                 />
               </div>
             )}
-            {activeKind === "li35" && (
+            {edition && (
               <GoogleAdsSection
+                edition={edition.id}
+                label={edition.label}
+                kind={activeKind}
                 range={data.range}
                 refreshKey={data.updatedAt}
                 meta={activeCampaign}
@@ -2695,8 +2726,13 @@ export default function Home() {
                 leadsError={leadsError}
               />
             )}
-            {activeKind === "li35" && (
-              <PesquisaSection range={data.range} refreshKey={data.updatedAt} />
+            {edition && (
+              <PesquisaSection
+                edition={edition.id}
+                label={edition.label}
+                range={data.range}
+                refreshKey={data.updatedAt}
+              />
             )}
           </div>
         )}
@@ -3155,6 +3191,7 @@ function LivesComparison({ rows, title }: { rows: Row[]; title: string }) {
 // vieram de tráfego pago, com o custo por lead calculado sobre o investimento
 // somado do Meta Ads e do Google Ads.
 function TsLeadsSection({
+  label,
   spend,
   previousSpend,
   metaSpend,
@@ -3168,6 +3205,7 @@ function TsLeadsSection({
   leads,
   leadsError,
 }: {
+  label: string;
   spend: number;
   previousSpend: number | null;
   metaSpend: number;
@@ -3264,7 +3302,7 @@ function TsLeadsSection({
     <div>
       <SectionTitle
         icon={<FileSpreadsheet size={26} className="text-emerald-600" />}
-        note="Inscrições da planilha do LI35 que vieram de tráfego pago, separadas em TS (já tem Silhouette) e NTS (ainda não tem). O custo por lead usa o investimento do Meta Ads e do Google Ads."
+        note={`Inscrições da planilha do ${label} que vieram de tráfego pago, separadas em TS (já tem Silhouette) e NTS (ainda não tem). O custo por lead usa o investimento do Meta Ads e do Google Ads.`}
       >
         Leads TS e NTS (planilha)
       </SectionTitle>
@@ -3528,16 +3566,27 @@ const SURVEY_EXPLANATIONS: Record<string, string> = {
 // Dados da pesquisa de leads do LI35 (aba "Respostas pesquisa" da planilha): um
 // gráfico de rosca por pergunta, com filtros de fonte, campanha (posicionamento)
 // e anúncio, no mesmo período do restante da aba.
-function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: string }) {
+function PesquisaSection({
+  edition,
+  label,
+  range,
+  refreshKey,
+}: {
+  edition: string;
+  label: string;
+  range: DateRange;
+  refreshKey: string;
+}) {
   const [filters, setFilters] = useState({ fonte: "", campanha: "", publico: "", anuncio: "" });
   const [result, setResult] = useState<{ key: string; data?: SurveyData; error?: string }>();
-  const key = `${range.since}:${range.until}:${filters.fonte}:${filters.campanha}:${filters.publico}:${filters.anuncio}:${refreshKey}`;
+  const key = `${edition}:${range.since}:${range.until}:${filters.fonte}:${filters.campanha}:${filters.publico}:${filters.anuncio}:${refreshKey}`;
 
   useEffect(() => {
     let cancelled = false;
     const params = new URLSearchParams({
       since: range.since,
       until: range.until,
+      edition,
       fonte: filters.fonte,
       campanha: filters.campanha,
       publico: filters.publico,
@@ -3558,6 +3607,7 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
     };
   }, [
     key,
+    edition,
     range.since,
     range.until,
     filters.fonte,
@@ -3605,7 +3655,7 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
     <div>
       <SectionTitle
         icon={<ClipboardList size={26} className="text-violet-600" />}
-        note="Respostas da pesquisa de leads do LI35, pela data em que a pessoa respondeu. Os filtros mudam todos os gráficos."
+        note={`Respostas da pesquisa de leads do ${label}, pela data em que a pessoa respondeu. Os filtros mudam todos os gráficos.`}
       >
         Dados da Pesquisa
       </SectionTitle>
@@ -3795,6 +3845,9 @@ function PesquisaSection({ range, refreshKey }: { range: DateRange; refreshKey: 
 // Parte do Google Ads da aba de captação. Segue o mesmo período da parte da
 // Meta e busca de novo sempre que o dashboard é atualizado (`refreshKey`).
 function GoogleAdsSection({
+  edition,
+  label,
+  kind,
   range,
   refreshKey,
   meta,
@@ -3805,6 +3858,9 @@ function GoogleAdsSection({
   leads,
   leadsError,
 }: {
+  edition: string;
+  label: string;
+  kind: Kind;
   range: DateRange;
   refreshKey: string;
   meta: Metrics;
@@ -3815,12 +3871,12 @@ function GoogleAdsSection({
   leads?: LeadsData;
   leadsError?: string;
 }) {
-  const key = `${range.since}:${range.until}:${refreshKey}`;
+  const key = `${edition}:${range.since}:${range.until}:${refreshKey}`;
   const [result, setResult] = useState<{ key: string; data?: GoogleData; error?: string }>();
 
   useEffect(() => {
     let cancelled = false;
-    const params = new URLSearchParams({ since: range.since, until: range.until, v: refreshKey });
+    const params = new URLSearchParams({ since: range.since, until: range.until, edition, v: refreshKey });
     fetch(`/api/google?${params}`)
       .then(async (res) => {
         const json = await res.json();
@@ -3833,7 +3889,7 @@ function GoogleAdsSection({
     return () => {
       cancelled = true;
     };
-  }, [key, range.since, range.until, refreshKey]);
+  }, [key, edition, range.since, range.until, refreshKey]);
 
   const fresh = result?.key === key ? result : undefined;
   const data = fresh?.data ?? result?.data;
@@ -3925,7 +3981,7 @@ function GoogleAdsSection({
     <div>
       <SectionTitle
         icon={<GoogleAdsLogo />}
-        note="Campanhas de captação do LI35 no Google Ads. Leads TS são as inscrições da planilha com a UTM do Google (yt-paid-hot) de quem já tem a Silhouette."
+        note={`Campanhas de captação do ${label} no Google Ads. Leads TS são as inscrições da planilha com a UTM do Google (yt-paid-hot) de quem já tem a Silhouette.`}
       >
         Google Ads
       </SectionTitle>
@@ -3952,7 +4008,7 @@ function GoogleAdsSection({
           {data.totals.impressions > 0 ? (
             <>
               <InvestimentoConversasChart
-                kind="li35"
+                kind={kind}
                 data={
                   leads
                     ? data.dailyChart.map((p) => {
@@ -3969,7 +4025,7 @@ function GoogleAdsSection({
                 costLabel={leads ? "Custo por Lead TS" : undefined}
               />
               <LevelTable
-                kind="li35"
+                kind={kind}
                 title="Campanhas"
                 totalReach={null}
                 rows={data.levels.campaigns}
@@ -3977,7 +4033,7 @@ function GoogleAdsSection({
                 hideColumns={GOOGLE_HIDDEN_COLUMNS}
               />
               <LevelTable
-                kind="li35"
+                kind={kind}
                 title="Grupos de anúncios"
                 totalReach={null}
                 rows={data.levels.adsets}
@@ -3985,7 +4041,7 @@ function GoogleAdsSection({
                 hideColumns={GOOGLE_HIDDEN_COLUMNS}
               />
               <LevelTable
-                kind="li35"
+                kind={kind}
                 title="Anúncios"
                 totalReach={null}
                 rows={data.levels.ads}
@@ -4047,6 +4103,7 @@ function GoogleAdsSection({
       )}
 
       <TsLeadsSection
+        label={label}
         spend={meta.spend + (data?.totals.spend ?? 0)}
         metaSpend={meta.spend}
         googleSpend={data?.totals.spend ?? 0}
