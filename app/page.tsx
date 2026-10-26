@@ -2643,7 +2643,7 @@ export default function Home() {
               return (
                 <>
                   <InvestimentoConversasChart kind={activeKind} data={daily} {...labels} />
-                  <MetricasChart kind={activeKind} data={daily} {...labels} />
+                  <MetricasChart data={daily} />
                 </>
               );
             })()}
