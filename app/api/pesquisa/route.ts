@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serviceAccountRows } from "../../lib/sheets";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +104,8 @@ function parseCsv(text: string): string[][] {
 }
 
 async function fetchRange(sheetId: string, range: string, tab = TAB) {
+  const viaAccount = await serviceAccountRows(sheetId, tab, range);
+  if (viaAccount) return viaAccount;
   const url =
     `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv` +
     `&sheet=${encodeURIComponent(tab)}&range=${range}`;

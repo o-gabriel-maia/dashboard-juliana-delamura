@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serviceAccountRows } from "../../lib/sheets";
 
 export const dynamic = "force-dynamic";
 
@@ -134,12 +135,17 @@ export async function GET(request: Request) {
     const previous = previousRange(range);
     const sheetId = SHEET_IDS[searchParams.get("edition") ?? "li35"] ?? SHEET_IDS.li35;
 
-    const url =
-      `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv` +
-      `&sheet=${encodeURIComponent(TAB)}&range=E:J`;
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error("Não foi possível ler a planilha de leads.");
-    const table = parseCsv(await res.text());
+    // Com a conta de serviço configurada a planilha pode ficar restrita; sem ela,
+    // lê pelo link público.
+    let table = await serviceAccountRows(sheetId, TAB, "E:J");
+    if (!table) {
+      const url =
+        `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv` +
+        `&sheet=${encodeURIComponent(TAB)}&range=E:J`;
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error("Não foi possível ler a planilha de leads.");
+      table = parseCsv(await res.text());
+    }
     if (table.length === 0 || !/Data/i.test(table[0][0] ?? "")) {
       throw new Error("A planilha de leads veio em formato inesperado. Confira se o link continua compartilhado.");
     }
