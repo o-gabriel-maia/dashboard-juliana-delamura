@@ -2140,6 +2140,7 @@ export default function Home() {
       cancelled = true;
     };
   }, [needsLeads, editionId, rangeSince, rangeUntil, updatedAt]);
+  const google = useGoogleData(edition?.id, data?.range, data?.updatedAt);
   const leadsOfEdition = leadsState?.edition === editionId ? leadsState : undefined;
   const leads = leadsOfEdition?.data;
   const leadsError = leadsOfEdition?.error;
@@ -2593,6 +2594,27 @@ export default function Home() {
               {...headerProps}
               liveFilter={liveFilter}
             />
+            {edition && !google.data && !google.error && (
+              <div className="mb-6 text-gray-500">Carregando o Google Ads…</div>
+            )}
+            {edition && (google.data || google.error) && (
+              <TsLeadsSection
+                part="top"
+                label={edition.label}
+                spend={activeCampaign.spend + (google.data?.totals.spend ?? 0)}
+                previousSpend={null}
+                metaSpend={activeCampaign.spend}
+                googleSpend={google.data?.totals.spend ?? 0}
+                metaDaily={data.dailyByCampaign[activeCampaign.id] ?? []}
+                googleDaily={google.data?.dailyChart ?? []}
+                metaAdsets={data.levels.adsets.filter((r) => r.campaignId === activeCampaign.id)}
+                metaAds={data.levels.ads.filter((r) => r.campaignId === activeCampaign.id)}
+                googleAdsets={google.data?.levels.adsets ?? []}
+                googleAds={google.data?.levels.ads ?? []}
+                leads={leads}
+                leadsError={leadsError}
+              />
+            )}
             {edition && (
               <SectionTitle
                 icon={<MetaLogo />}
@@ -2643,7 +2665,11 @@ export default function Home() {
               return (
                 <>
                   <InvestimentoConversasChart kind={activeKind} data={daily} {...labels} />
-                  <MetricasChart data={daily} />
+                  <MetricasChart
+                    kind={edition ? undefined : activeKind}
+                    data={daily}
+                    {...(edition ? {} : labels)}
+                  />
                 </>
               );
             })()}
@@ -2712,11 +2738,9 @@ export default function Home() {
             )}
             {edition && (
               <GoogleAdsSection
-                edition={edition.id}
+                google={google}
                 label={edition.label}
                 kind={activeKind}
-                range={data.range}
-                refreshKey={data.updatedAt}
                 meta={activeCampaign}
                 metaPrevious={data.previousByCampaign[activeCampaign.id]}
                 metaDaily={data.dailyByCampaign[activeCampaign.id] ?? []}
@@ -2739,6 +2763,43 @@ export default function Home() {
       </main>
     </div>
   );
+}
+
+type GoogleState = { data?: GoogleData; loading: boolean; error?: string };
+
+// Google Ads da edição (LI35/LI36): buscado uma vez só e usado tanto na tabela do
+// topo quanto na seção do Google Ads.
+function useGoogleData(
+  edition: string | undefined,
+  range: DateRange | undefined,
+  refreshKey: string | undefined,
+): GoogleState {
+  const since = range?.since;
+  const until = range?.until;
+  const key = edition && since && until && refreshKey ? `${edition}:${since}:${until}:${refreshKey}` : null;
+  const [result, setResult] = useState<{ key: string; edition: string; data?: GoogleData; error?: string }>();
+
+  useEffect(() => {
+    if (!key || !edition || !since || !until || !refreshKey) return;
+    let cancelled = false;
+    const params = new URLSearchParams({ since, until, edition, v: refreshKey });
+    fetch(`/api/google?${params}`)
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok || json.error) throw new Error(json.error || "Erro ao buscar o Google Ads.");
+        if (!cancelled) setResult({ key, edition, data: json as GoogleData });
+      })
+      .catch((e) => {
+        if (!cancelled) setResult({ key, edition, error: friendlyError(e) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [key, edition, since, until, refreshKey]);
+
+  const fresh = key && result?.key === key ? result : undefined;
+  const data = fresh?.data ?? (result?.edition === edition ? result?.data : undefined);
+  return { data, loading: !!key && !fresh && !!data, error: fresh?.error };
 }
 
 type GoogleData = {
@@ -3191,6 +3252,7 @@ function LivesComparison({ rows, title }: { rows: Row[]; title: string }) {
 // vieram de tráfego pago, com o custo por lead calculado sobre o investimento
 // somado do Meta Ads e do Google Ads.
 function TsLeadsSection({
+  part = "rest",
   label,
   spend,
   previousSpend,
@@ -3205,6 +3267,7 @@ function TsLeadsSection({
   leads,
   leadsError,
 }: {
+  part?: "top" | "rest";
   label: string;
   spend: number;
   previousSpend: number | null;
@@ -3298,43 +3361,14 @@ function TsLeadsSection({
       ]
     : [];
 
-  return (
-    <div>
-      <SectionTitle
-        icon={<FileSpreadsheet size={26} className="text-emerald-600" />}
-        note={`Inscrições da planilha do ${label} que vieram de tráfego pago, separadas em TS (já tem Silhouette) e NTS (ainda não tem). O custo por lead usa o investimento do Meta Ads e do Google Ads.`}
-      >
-        Leads TS e NTS (planilha)
-      </SectionTitle>
-      {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-      {!data && !error && <div className="text-gray-500">Carregando a planilha de leads…</div>}
-      {data && cur && (
-        <div className={`transition-opacity duration-300 ${loading ? "opacity-40" : ""}`}>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {cards.map((card) => (
-              <Kpi
-                key={card.label}
-                label={card.label}
-                value={card.format(card.current)}
-                current={card.current}
-                previous={card.previous}
-                previousLabel={card.format(card.previous)}
-                trend={card.trend}
-              />
-            ))}
-          </div>
-          <p className="mt-3 text-xs text-gray-500">
-            Variação em relação ao período anterior ({formatFullDate(data.previousRange.since)} a{" "}
-            {formatFullDate(data.previousRange.until)}). Ficam de fora do custo por lead{" "}
-            {formatNumber(cur.tsOther + cur.ntsOther)} inscrições de outras origens (e-mail,
-            WhatsApp ou sem UTM) no período.
-          </p>
-
-          <div className="mt-5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+  // Parte "top": tabela por plataforma, gráfico e tabela por dia, no topo da aba.
+  // Parte "rest": cartões e tabelas por público e por criativo, lá embaixo.
+  if (part === "top") {
+    if (error) return null;
+    if (!data || !cur) return <div className="text-gray-500">Carregando a planilha de leads…</div>;
+    return (
+      <div className={`transition-opacity duration-300 ${loading ? "opacity-40" : ""}`}>
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 className="mb-3 text-sm font-semibold text-gray-900">
               Por plataforma
               <ChartNote note="(investimento de cada plataforma e os leads da planilha com a UTM dela)" />
@@ -3506,8 +3540,7 @@ function TsLeadsSection({
           </div>
 
           <TsNtsDailyTable rows={days} />
-
-          <TsByNameTable
+        <TsByNameTable
             title="Custo por Lead TS por Público (conjunto ou grupo)"
             note="(gasto de cada plataforma ÷ leads TS da planilha com a UTM do conjunto ou grupo; nomes iguais em campanhas diferentes são somados)"
             nameLabel="Conjunto / Grupo"
@@ -3515,7 +3548,7 @@ function TsLeadsSection({
             googleRows={googleAdsets}
             sheetRows={data.byAdset ?? []}
           />
-          <TsByNameTable
+        <TsByNameTable
             title="Custo por Lead TS por Criativo (anúncio)"
             note="(gasto de cada plataforma ÷ leads TS da planilha com a UTM do anúncio; nomes iguais em conjuntos diferentes são somados)"
             nameLabel="Anúncio"
@@ -3524,6 +3557,46 @@ function TsLeadsSection({
             sheetRows={data.byAd ?? []}
             showPreview
           />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <SectionTitle
+        icon={<FileSpreadsheet size={26} className="text-emerald-600" />}
+        note={`Inscrições da planilha do ${label} que vieram de tráfego pago, separadas em TS (já tem Silhouette) e NTS (ainda não tem). O custo por lead usa o investimento do Meta Ads e do Google Ads.`}
+      >
+        Leads TS e NTS (planilha)
+      </SectionTitle>
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {!data && !error && <div className="text-gray-500">Carregando a planilha de leads…</div>}
+      {data && cur && (
+        <div className={`transition-opacity duration-300 ${loading ? "opacity-40" : ""}`}>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {cards.map((card) => (
+              <Kpi
+                key={card.label}
+                label={card.label}
+                value={card.format(card.current)}
+                current={card.current}
+                previous={card.previous}
+                previousLabel={card.format(card.previous)}
+                trend={card.trend}
+              />
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-gray-500">
+            Variação em relação ao período anterior ({formatFullDate(data.previousRange.since)} a{" "}
+            {formatFullDate(data.previousRange.until)}). Ficam de fora do custo por lead{" "}
+            {formatNumber(cur.tsOther + cur.ntsOther)} inscrições de outras origens (e-mail,
+            WhatsApp ou sem UTM) no período.
+          </p>
+
         </div>
       )}
     </div>
@@ -3845,11 +3918,9 @@ function PesquisaSection({
 // Parte do Google Ads da aba de captação. Segue o mesmo período da parte da
 // Meta e busca de novo sempre que o dashboard é atualizado (`refreshKey`).
 function GoogleAdsSection({
-  edition,
+  google,
   label,
   kind,
-  range,
-  refreshKey,
   meta,
   metaPrevious,
   metaDaily,
@@ -3858,11 +3929,9 @@ function GoogleAdsSection({
   leads,
   leadsError,
 }: {
-  edition: string;
+  google: GoogleState;
   label: string;
   kind: Kind;
-  range: DateRange;
-  refreshKey: string;
   meta: Metrics;
   metaPrevious?: Metrics;
   metaDaily: DailyPoint[];
@@ -3871,30 +3940,7 @@ function GoogleAdsSection({
   leads?: LeadsData;
   leadsError?: string;
 }) {
-  const key = `${edition}:${range.since}:${range.until}:${refreshKey}`;
-  const [result, setResult] = useState<{ key: string; data?: GoogleData; error?: string }>();
-
-  useEffect(() => {
-    let cancelled = false;
-    const params = new URLSearchParams({ since: range.since, until: range.until, edition, v: refreshKey });
-    fetch(`/api/google?${params}`)
-      .then(async (res) => {
-        const json = await res.json();
-        if (!res.ok || json.error) throw new Error(json.error || "Erro ao buscar o Google Ads.");
-        if (!cancelled) setResult({ key, data: json as GoogleData });
-      })
-      .catch((e) => {
-        if (!cancelled) setResult({ key, error: friendlyError(e) });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [key, edition, range.since, range.until, refreshKey]);
-
-  const fresh = result?.key === key ? result : undefined;
-  const data = fresh?.data ?? result?.data;
-  const loading = !fresh && !!data;
-  const error = fresh?.error;
+  const { data, loading, error } = google;
 
   type Card = {
     label: string;
