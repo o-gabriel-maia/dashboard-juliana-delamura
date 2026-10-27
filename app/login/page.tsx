@@ -28,6 +28,10 @@ export default async function Login({
           className="w-full rounded-lg border border-black/20 bg-transparent px-3 py-2 outline-none focus:border-black/60 dark:border-white/25 dark:focus:border-white/70"
         />
         <CampoSenha />
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <input type="checkbox" name="manter" className="h-4 w-4 cursor-pointer" />
+          Me mantenha conectado
+        </label>
         {erro ? (
           <p className="text-sm text-red-600 dark:text-red-400">
             Usuário ou senha incorretos. Tente novamente.

@@ -12,6 +12,7 @@ export async function POST(request: Request) {
   const dados = await request.formData();
   const usuario = String(dados.get("usuario") ?? "");
   const senha = String(dados.get("senha") ?? "");
+  const manterConectado = dados.get("manter") === "on";
 
   const destino = (caminho: string) => new URL(caminho, request.url);
 
@@ -32,7 +33,8 @@ export async function POST(request: Request) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: DURACAO_SESSAO_SEGUNDOS,
+    // Sem a caixa marcada o cookie é de sessão e some quando o navegador fecha.
+    ...(manterConectado ? { maxAge: DURACAO_SESSAO_SEGUNDOS } : {}),
   });
   return resposta;
 }
