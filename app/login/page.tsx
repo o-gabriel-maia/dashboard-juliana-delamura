@@ -15,6 +15,15 @@ export default async function Login({
           <p className="text-sm opacity-70">Digite a senha para acessar.</p>
         </div>
         <input
+          type="text"
+          name="usuario"
+          defaultValue="Dashboard Juliana Delamura"
+          autoComplete="username"
+          tabIndex={-1}
+          aria-hidden="true"
+          className="sr-only"
+        />
+        <input
           type="password"
           name="senha"
           required
