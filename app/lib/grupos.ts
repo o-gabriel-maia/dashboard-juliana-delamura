@@ -5,6 +5,8 @@ export const CHAVE_GRUPOS = "sf:grupos";
 export const CHAVE_AJUSTES = "sf:ajustes";
 export const CHAVE_ULTIMOS = "sf:ultimos";
 export const chaveMembros = (grupoId: string) => `sf:membros:${grupoId}`;
+// Quem saiu sem nunca ter sido visto entrando (já estava no grupo antes do webhook).
+export const chaveSaidas = (grupoId: string) => `sf:saidas:${grupoId}`;
 
 export type GrupoInfo = { campanha: string; grupo: string; campanhaId: string };
 
@@ -54,7 +56,10 @@ export async function lerLinhas(db: Redis) {
   const ids = Object.keys(cadastro ?? {});
 
   const pipeline = db.pipeline();
-  for (const id of ids) pipeline.scard(chaveMembros(id));
+  for (const id of ids) {
+    pipeline.scard(chaveMembros(id));
+    pipeline.scard(chaveSaidas(id));
+  }
   pipeline.lrange(CHAVE_ULTIMOS, 0, 9);
   const respostas = await pipeline.exec<unknown[]>();
 
@@ -71,7 +76,9 @@ export async function lerLinhas(db: Redis) {
 
   ids.forEach((id, i) => {
     const info = comoObjeto<GrupoInfo>(cadastro![id]);
-    linhaDe(info.campanha, info.grupo).webhook += Number(respostas[i] ?? 0);
+    const entraram = Number(respostas[2 * i] ?? 0);
+    const sairamSemTerEntrado = Number(respostas[2 * i + 1] ?? 0);
+    linhaDe(info.campanha, info.grupo).webhook += entraram - sairamSemTerEntrado;
   });
   for (const valor of Object.values(ajustes ?? {})) {
     const ajuste = comoObjeto<Ajuste>(valor);
@@ -83,7 +90,7 @@ export async function lerLinhas(db: Redis) {
 
   return {
     linhas: [...porChave.values()],
-    ultimosEventos: respostas[ids.length] ?? [],
+    ultimosEventos: respostas[2 * ids.length] ?? [],
   };
 }
 
