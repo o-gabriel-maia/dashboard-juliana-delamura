@@ -1,0 +1,40 @@
+export default async function Login({
+  searchParams,
+}: PageProps<"/login">) {
+  const { erro } = await searchParams;
+
+  return (
+    <main className="flex flex-1 items-center justify-center px-4 py-16">
+      <form
+        method="POST"
+        action="/api/login"
+        className="w-full max-w-sm space-y-4 rounded-xl border border-black/10 p-6 dark:border-white/15"
+      >
+        <div>
+          <h1 className="text-lg font-semibold">Dashboard Juliana Delamura</h1>
+          <p className="text-sm opacity-70">Digite a senha para acessar.</p>
+        </div>
+        <input
+          type="password"
+          name="senha"
+          required
+          autoFocus
+          autoComplete="current-password"
+          placeholder="Senha"
+          className="w-full rounded-lg border border-black/20 bg-transparent px-3 py-2 outline-none focus:border-black/60 dark:border-white/25 dark:focus:border-white/70"
+        />
+        {erro ? (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            Senha incorreta. Tente novamente.
+          </p>
+        ) : null}
+        <button
+          type="submit"
+          className="w-full rounded-lg bg-black px-3 py-2 font-medium text-white dark:bg-white dark:text-black"
+        >
+          Entrar
+        </button>
+      </form>
+    </main>
+  );
+}
