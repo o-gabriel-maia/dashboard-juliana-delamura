@@ -38,8 +38,26 @@ function daAba(kind: Kind, campanha: string, live: string) {
   return !live || m[1] === live.toUpperCase();
 }
 
+// Nos lançamentos (LI) os grupos se dividem pelo público da campanha: TS, NTS e alunas.
+const SEGMENTOS = [
+  { id: "TS", titulo: "Grupos TS" },
+  { id: "NTS", titulo: "Grupos NTS" },
+  { id: "ALUNAS", titulo: "Grupos de alunas" },
+  { id: "OUTROS", titulo: "Outros grupos" },
+] as const;
+type SegmentoId = (typeof SEGMENTOS)[number]["id"];
+
+function segmentoDe(campanha: string): SegmentoId {
+  const nome = semAcento(campanha).toUpperCase();
+  if (/\[NTS\]/.test(nome)) return "NTS";
+  if (/\[TS\]/.test(nome)) return "TS";
+  if (/\[ALUNAS?\]/.test(nome)) return "ALUNAS";
+  return "OUTROS";
+}
+
 const numero = (valor: number) => valor.toLocaleString("pt-BR");
 const ordem = (a: string, b: string) => a.localeCompare(b, "pt-BR", { numeric: true });
+const plural = (n: number) => `${n} ${n === 1 ? "grupo" : "grupos"}`;
 
 const cabecalho = "px-2.5 py-2.5 text-center";
 const celula = "px-2.5 py-2.5 text-center";
@@ -48,6 +66,9 @@ const campo =
 const botao =
   "rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50";
 
+type Secao = { id: string; titulo: string | null; linhas: Linha[] };
+type Cartao = { rotulo: string; grupos: number; membros: number };
+
 export default function GruposSection({ kind, live }: { kind: Kind; live: string }) {
   const [linhas, setLinhas] = useState<Linha[]>();
   const [erro, setErro] = useState("");
@@ -55,6 +76,7 @@ export default function GruposSection({ kind, live }: { kind: Kind; live: string
   const [salvando, setSalvando] = useState("");
   const [aviso, setAviso] = useState("");
   const [nova, setNova] = useState({ campanha: "", grupo: "", quantidade: "" });
+  const porSegmento = kind === "li35" || kind === "li36";
 
   useEffect(() => {
     let cancelado = false;
@@ -80,16 +102,32 @@ export default function GruposSection({ kind, live }: { kind: Kind; live: string
     [linhas, kind, live],
   );
 
-  const porCampanha = useMemo(() => {
-    const mapa = new Map<string, { campanha: string; grupos: number; membros: number }>();
+  const secoes = useMemo<Secao[]>(() => {
+    if (!porSegmento) return [{ id: "todos", titulo: null, linhas: daAbaAtual }];
+    return SEGMENTOS.map((s) => ({
+      id: s.id,
+      titulo: s.titulo,
+      linhas: daAbaAtual.filter((l) => segmentoDe(l.campanha) === s.id),
+    })).filter((s) => s.linhas.length > 0);
+  }, [daAbaAtual, porSegmento]);
+
+  const cartoes = useMemo<Cartao[]>(() => {
+    if (porSegmento) {
+      return secoes.map((s) => ({
+        rotulo: s.titulo ?? "",
+        grupos: s.linhas.length,
+        membros: s.linhas.reduce((soma, l) => soma + l.membros, 0),
+      }));
+    }
+    const mapa = new Map<string, Cartao>();
     for (const l of daAbaAtual) {
-      const atual = mapa.get(l.campanha) ?? { campanha: l.campanha, grupos: 0, membros: 0 };
+      const atual = mapa.get(l.campanha) ?? { rotulo: l.campanha, grupos: 0, membros: 0 };
       atual.grupos += 1;
       atual.membros += l.membros;
       mapa.set(l.campanha, atual);
     }
     return [...mapa.values()];
-  }, [daAbaAtual]);
+  }, [secoes, daAbaAtual, porSegmento]);
 
   const total = daAbaAtual.reduce((soma, l) => soma + l.membros, 0);
   const sugestoes = [
@@ -132,6 +170,73 @@ export default function GruposSection({ kind, live }: { kind: Kind; live: string
     }
   }
 
+  function tabela(secao: Secao) {
+    return (
+      <div key={secao.id} className="mb-5">
+        {secao.titulo && (
+          <h3 className="mb-2 text-sm font-semibold text-gray-900">
+            {secao.titulo}
+            <span className="ml-2 font-normal text-gray-500">
+              {numero(secao.linhas.reduce((soma, l) => soma + l.membros, 0))} pessoas em{" "}
+              {plural(secao.linhas.length)}
+            </span>
+          </h3>
+        )}
+        <div className="max-h-[420px] overflow-auto">
+          <table className="w-full text-sm" style={{ minWidth: 820 }}>
+            <thead className="sticky top-0 z-10 bg-gray-50">
+              <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
+                <th className="px-2.5 py-2.5 text-left">Campanha</th>
+                <th className="px-2.5 py-2.5 text-left">Grupo</th>
+                <th className={cabecalho}>Pessoas no grupo</th>
+                <th className={cabecalho}>Base digitada</th>
+                <th className={cabecalho}>Entradas − saídas</th>
+                <th className={cabecalho}>Atualizar total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {secao.linhas.map((l) => (
+                <tr key={l.chave} className="border-b border-gray-100 text-gray-800">
+                  <td className="px-2.5 py-2.5 text-left">{l.campanha}</td>
+                  <td className="px-2.5 py-2.5 text-left">{l.grupo}</td>
+                  <td className={`${celula} font-semibold`}>{numero(l.membros)}</td>
+                  <td className={celula}>{numero(l.base)}</td>
+                  <td className={celula}>{numero(l.webhook)}</td>
+                  <td className={celula}>
+                    <div className="flex items-center justify-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        placeholder="Quantas hoje"
+                        value={rascunhos[l.chave] ?? ""}
+                        onChange={(e) =>
+                          setRascunhos((atuais) => ({ ...atuais, [l.chave]: e.target.value }))
+                        }
+                        className={`${campo} w-28`}
+                      />
+                      <button
+                        type="button"
+                        className={botao}
+                        disabled={
+                          (rascunhos[l.chave] ?? "") === "" ||
+                          salvando === `${l.campanha}||${l.grupo}`
+                        }
+                        onClick={() => salvar(l.campanha, l.grupo, rascunhos[l.chave])}
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <section className="mb-6">
       <div className="mb-4 mt-2 border-b border-gray-200 pb-2">
@@ -151,76 +256,19 @@ export default function GruposSection({ kind, live }: { kind: Kind; live: string
             <div className="min-w-[170px] rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
               <div className="text-xs text-gray-500">Total nas campanhas desta aba</div>
               <div className="text-2xl font-bold text-gray-900">{numero(total)}</div>
-              <div className="text-xs text-gray-500">
-                {daAbaAtual.length} {daAbaAtual.length === 1 ? "grupo" : "grupos"}
-              </div>
+              <div className="text-xs text-gray-500">{plural(daAbaAtual.length)}</div>
             </div>
-            {porCampanha.map((c) => (
-              <div
-                key={c.campanha}
-                className="min-w-[170px] rounded-lg border border-gray-200 px-4 py-3"
-              >
-                <div className="text-xs text-gray-500">{c.campanha}</div>
+            {cartoes.map((c) => (
+              <div key={c.rotulo} className="min-w-[170px] rounded-lg border border-gray-200 px-4 py-3">
+                <div className="text-xs text-gray-500">{c.rotulo}</div>
                 <div className="text-xl font-bold text-gray-900">{numero(c.membros)}</div>
-                <div className="text-xs text-gray-500">
-                  {c.grupos} {c.grupos === 1 ? "grupo" : "grupos"}
-                </div>
+                <div className="text-xs text-gray-500">{plural(c.grupos)}</div>
               </div>
             ))}
           </div>
 
           {daAbaAtual.length > 0 ? (
-            <div className="max-h-[420px] overflow-auto">
-              <table className="w-full text-sm" style={{ minWidth: 820 }}>
-                <thead className="sticky top-0 z-10 bg-gray-50">
-                  <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
-                    <th className="px-2.5 py-2.5 text-left">Campanha</th>
-                    <th className="px-2.5 py-2.5 text-left">Grupo</th>
-                    <th className={cabecalho}>Pessoas no grupo</th>
-                    <th className={cabecalho}>Base digitada</th>
-                    <th className={cabecalho}>Entradas − saídas</th>
-                    <th className={cabecalho}>Atualizar total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {daAbaAtual.map((l) => (
-                    <tr key={l.chave} className="border-b border-gray-100 text-gray-800">
-                      <td className="px-2.5 py-2.5 text-left">{l.campanha}</td>
-                      <td className="px-2.5 py-2.5 text-left">{l.grupo}</td>
-                      <td className={`${celula} font-semibold`}>{numero(l.membros)}</td>
-                      <td className={celula}>{numero(l.base)}</td>
-                      <td className={celula}>{numero(l.webhook)}</td>
-                      <td className={celula}>
-                        <div className="flex items-center justify-center gap-2">
-                          <input
-                            type="number"
-                            min={0}
-                            inputMode="numeric"
-                            placeholder="Quantas hoje"
-                            value={rascunhos[l.chave] ?? ""}
-                            onChange={(e) =>
-                              setRascunhos((atuais) => ({ ...atuais, [l.chave]: e.target.value }))
-                            }
-                            className={`${campo} w-28`}
-                          />
-                          <button
-                            type="button"
-                            className={botao}
-                            disabled={
-                              (rascunhos[l.chave] ?? "") === "" ||
-                              salvando === `${l.campanha}||${l.grupo}`
-                            }
-                            onClick={() => salvar(l.campanha, l.grupo, rascunhos[l.chave])}
-                          >
-                            Salvar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            secoes.map(tabela)
           ) : (
             <p className="text-sm text-gray-500">
               Nenhum grupo desta aba ainda. Os grupos aparecem aqui quando chega o primeiro aviso do
@@ -228,7 +276,7 @@ export default function GruposSection({ kind, live }: { kind: Kind; live: string
             </p>
           )}
 
-          <div className="mt-5 border-t border-gray-100 pt-4">
+          <div className="mt-2 border-t border-gray-100 pt-4">
             <h3 className="mb-2 text-sm font-semibold text-gray-900">Adicionar grupo à mão</h3>
             <div className="flex flex-wrap items-center gap-2">
               <input
