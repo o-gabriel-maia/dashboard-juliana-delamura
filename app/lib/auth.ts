@@ -3,7 +3,15 @@ export const DURACAO_SESSAO_SEGUNDOS = 60 * 60 * 24 * 30;
 
 // O cookie guarda um HMAC da senha, nunca a senha: trocar a senha na Vercel
 // invalida todas as sessões abertas.
-export async function tokenDaSenha(senha: string): Promise<string> {
+export function usuarioEsperado(): string {
+  return (process.env.DASHBOARD_USER ?? "juliana").trim().toLowerCase();
+}
+
+export function normalizarUsuario(usuario: string): string {
+  return usuario.trim().toLowerCase();
+}
+
+export async function tokenDaSenha(senha: string, usuario: string): Promise<string> {
   const enc = new TextEncoder();
   const chave = await crypto.subtle.importKey(
     "raw",
@@ -15,7 +23,7 @@ export async function tokenDaSenha(senha: string): Promise<string> {
   const assinatura = await crypto.subtle.sign(
     "HMAC",
     chave,
-    enc.encode("dashboard-juliana-delamura"),
+    enc.encode(`dashboard-juliana-delamura:${normalizarUsuario(usuario)}`),
   );
   return Array.from(new Uint8Array(assinatura))
     .map((b) => b.toString(16).padStart(2, "0"))

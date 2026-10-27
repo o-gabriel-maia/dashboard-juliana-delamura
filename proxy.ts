@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { COOKIE_SESSAO, iguais, tokenDaSenha } from "./app/lib/auth";
+import {
+  COOKIE_SESSAO,
+  iguais,
+  tokenDaSenha,
+  usuarioEsperado,
+} from "./app/lib/auth";
 
 const NOINDEX = "noindex, nofollow, noarchive, nosnippet";
 
@@ -37,7 +42,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const cookie = request.cookies.get(COOKIE_SESSAO)?.value ?? "";
-  const esperado = await tokenDaSenha(senha);
+  const esperado = await tokenDaSenha(senha, usuarioEsperado());
   if (iguais(cookie, esperado)) return comNoindex(NextResponse.next());
 
   if (pathname.startsWith("/api/")) {

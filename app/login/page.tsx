@@ -12,29 +12,30 @@ export default async function Login({
       >
         <div>
           <h1 className="text-lg font-semibold">Dashboard Juliana Delamura</h1>
-          <p className="text-sm opacity-70">Digite a senha para acessar.</p>
+          <p className="text-sm opacity-70">Digite o usuário e a senha para acessar.</p>
         </div>
         <input
           type="text"
           name="usuario"
-          defaultValue="Dashboard Juliana Delamura"
+          required
+          autoFocus
+          autoCapitalize="none"
+          autoCorrect="off"
           autoComplete="username"
-          tabIndex={-1}
-          aria-hidden="true"
-          className="sr-only"
+          placeholder="Usuário"
+          className="w-full rounded-lg border border-black/20 bg-transparent px-3 py-2 outline-none focus:border-black/60 dark:border-white/25 dark:focus:border-white/70"
         />
         <input
           type="password"
           name="senha"
           required
-          autoFocus
           autoComplete="current-password"
           placeholder="Senha"
           className="w-full rounded-lg border border-black/20 bg-transparent px-3 py-2 outline-none focus:border-black/60 dark:border-white/25 dark:focus:border-white/70"
         />
         {erro ? (
           <p className="text-sm text-red-600 dark:text-red-400">
-            Senha incorreta. Tente novamente.
+            Usuário ou senha incorretos. Tente novamente.
           </p>
         ) : null}
         <button
