@@ -1,3 +1,5 @@
+import CampoSenha from "./CampoSenha";
+
 export default async function Login({
   searchParams,
 }: PageProps<"/login">) {
@@ -25,14 +27,7 @@ export default async function Login({
           placeholder="Usuário"
           className="w-full rounded-lg border border-black/20 bg-transparent px-3 py-2 outline-none focus:border-black/60 dark:border-white/25 dark:focus:border-white/70"
         />
-        <input
-          type="password"
-          name="senha"
-          required
-          autoComplete="current-password"
-          placeholder="Senha"
-          className="w-full rounded-lg border border-black/20 bg-transparent px-3 py-2 outline-none focus:border-black/60 dark:border-white/25 dark:focus:border-white/70"
-        />
+        <CampoSenha />
         {erro ? (
           <p className="text-sm text-red-600 dark:text-red-400">
             Usuário ou senha incorretos. Tente novamente.
