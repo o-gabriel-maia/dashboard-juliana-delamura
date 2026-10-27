@@ -37,6 +37,7 @@ import {
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
+import GruposSection from "./GruposSection";
 
 type DailyPoint = {
   date: string;
@@ -2594,6 +2595,7 @@ export default function Home() {
               {...headerProps}
               liveFilter={liveFilter}
             />
+            <GruposSection kind={activeKind} live={selectedLive} />
             {edition && !google.data && !google.error && (
               <div className="mb-6 text-gray-500">Carregando o Google Ads…</div>
             )}
