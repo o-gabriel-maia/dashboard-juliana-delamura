@@ -28,7 +28,11 @@ export async function proxy(request: NextRequest) {
     );
   }
 
-  if (pathname === "/login" || pathname === "/api/login") {
+  if (
+    pathname === "/login" ||
+    pathname === "/api/login" ||
+    pathname === "/api/sendflow"
+  ) {
     return comNoindex(NextResponse.next());
   }
 
