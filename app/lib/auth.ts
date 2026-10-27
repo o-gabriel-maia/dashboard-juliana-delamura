@@ -4,7 +4,7 @@ export const DURACAO_SESSAO_SEGUNDOS = 60 * 60 * 24 * 30;
 // O cookie guarda um HMAC da senha, nunca a senha: trocar a senha na Vercel
 // invalida todas as sessões abertas.
 export function usuarioEsperado(): string {
-  return (process.env.DASHBOARD_USER ?? "juliana").trim().toLowerCase();
+  return (process.env.DASHBOARD_USER ?? "Equipe Silhouette").trim().toLowerCase();
 }
 
 export function normalizarUsuario(usuario: string): string {
