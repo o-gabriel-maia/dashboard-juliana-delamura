@@ -238,8 +238,8 @@ export default function GruposSection({ kind, live }: { kind: Kind; live: string
   }
 
   return (
-    <section className="mb-6">
-      <div className="mb-4 mt-2 border-b border-gray-200 pb-2">
+    <section className="mb-6 mt-10">
+      <div className="mb-4 border-b border-gray-200 pb-2">
         <h2 className="text-lg font-bold text-gray-900">Pessoas nos grupos do WhatsApp</h2>
         <p className="mt-0.5 text-sm text-gray-500">
           Número digitado à mão (quantas pessoas o grupo tinha na hora) somado às entradas e saídas

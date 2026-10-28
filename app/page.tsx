@@ -2595,7 +2595,6 @@ export default function Home() {
               {...headerProps}
               liveFilter={liveFilter}
             />
-            <GruposSection kind={activeKind} live={selectedLive} />
             {edition && !google.data && !google.error && (
               <div className="mb-6 text-gray-500">Carregando o Google Ads…</div>
             )}
@@ -2760,6 +2759,7 @@ export default function Home() {
                 refreshKey={data.updatedAt}
               />
             )}
+            <GruposSection kind={activeKind} live={selectedLive} />
           </div>
         )}
       </main>
