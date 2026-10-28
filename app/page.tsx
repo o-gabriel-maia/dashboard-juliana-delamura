@@ -394,7 +394,7 @@ const KINDS: Record<
       "Captação de leads para as Lives Secretas de domingo (campanhas com código LS…_D): formulário nativo e página de inscrição, no Meta Ads.",
   },
   promo: {
-    tab: "Promo Diário",
+    tab: "Promo Diária",
     icon: Tag,
     result: "Leads",
     cost: "Custo por Lead",

@@ -9,7 +9,7 @@ Versão publicada: https://dashboard-juliana-delamura.vercel.app
 - **Resumo Geral**: visão consolidada das três frentes de captação.
 - **Lives Secretas Quarta**: campanhas com `LIVE_SECRETA` no nome e código `[LS###_Q…]` (só Meta Ads). Resultado: leads.
 - **Lives Secretas Domingo**: campanhas com `LIVE_SECRETA` no nome e código `[LS###_D…]` (só Meta Ads). Resultado: leads.
-- **Promo Diário**: campanhas com `PROMO_DIARIA` no nome e a campanha `[LOJA] [FORM] Promo Diária` (só Meta Ads). Resultado: leads.
+- **Promo Diária**: campanhas com `PROMO_DIARIA` no nome e a campanha `[LOJA] [FORM] Promo Diária` (só Meta Ads). Resultado: leads.
 - **Lançamento LI35**: campanhas com `[LI35]` no nome. Meta Ads primeiro e Google Ads depois, com um total das duas plataformas no fim.
 - **Lançamento LI36**: igual à do LI35. Meta Ads com `[LI36]_[CAPTURA]_[LEADS]` no nome e Google Ads com `[LI36]_[CAPTURA]_[GG_ADS]`; leads TS/NTS e pesquisa vêm da planilha do LI36 (`/api/leads`, `/api/google` e `/api/pesquisa` recebem `?edition=li36`; sem o parâmetro valem os dados do LI35). A planilha do LI36 precisa estar compartilhada por link (Leitor), como a do LI35.
 

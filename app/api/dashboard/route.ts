@@ -108,7 +108,7 @@ const GROUPS: {
   { key: "lsd", name: "Lives Secretas Domingo", tags: ["LIVE_SECRETA"], prefix: /^\[LS\d+_D/ },
   {
     key: "promo",
-    name: "Promo Diário",
+    name: "Promo Diária",
     tags: ["PROMO_DIARIA"],
     search: ["PROMO_DIARIA", "Promo Diária"],
     names: ["[LOJA] [FORM] PROMO DIÁRIA"],
