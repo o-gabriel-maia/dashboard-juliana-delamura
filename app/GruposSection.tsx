@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Kind = "lsq" | "lsd" | "promo" | "li35" | "li36";
+type Kind = "lsq" | "lsd" | "promo" | "li35" | "li36" | "webinario";
 
 type Linha = {
   chave: string;
@@ -24,6 +24,7 @@ const CAMPANHAS_CONHECIDAS: Record<Kind, string[]> = {
     "[LI35] [ALUNAS] BLACK FRIDAY",
   ],
   li36: ["[LI36] [TS] SEM DRAMA", "[LI36] [NTS] SEM DRAMA"],
+  webinario: [],
 };
 
 const semAcento = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -33,6 +34,7 @@ function daAba(kind: Kind, campanha: string, live: string) {
   if (kind === "li35") return nome.startsWith("[LI35]");
   if (kind === "li36") return nome.startsWith("[LI36]");
   if (kind === "promo") return nome.includes("PROMOCOES DIARIAS");
+  if (kind === "webinario") return false;
   const m = /^\[(LS\d+_([QD]))\]/.exec(nome);
   if (!m || m[2] !== (kind === "lsq" ? "Q" : "D")) return false;
   return !live || m[1] === live.toUpperCase();

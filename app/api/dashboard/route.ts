@@ -89,7 +89,7 @@ type DateRange = { since: string; until: string };
 // sozinha. O "resultado" (campo `conversations`) é o que a Meta mostra na
 // coluna Resultados do Gerenciador: leads (formulário nativo ou pixel). A parte
 // do Google Ads do LI35 e do LI36 vem de /api/google.
-type GroupKey = "lsq" | "lsd" | "promo" | "li35" | "li36";
+type GroupKey = "lsq" | "lsd" | "promo" | "li35" | "li36" | "webinario";
 const AD_ACCOUNT_ID = "519177155682126"; // Silhouette Experts
 // `search` são os trechos pedidos à Meta; `prefix`, quando existe, confere o
 // começo do nome no lugar das tags.
@@ -115,6 +115,7 @@ const GROUPS: {
   },
   { key: "li35", name: "Lançamento LI35", tags: ["[LI35]"] },
   { key: "li36", name: "Lançamento LI36", tags: ["[LI36]_[CAPTURA]_[LEADS]"], search: ["LI36"] },
+  { key: "webinario", name: "Captação Webinário LS", tags: ["[WEBINARIO]_[CAPTURA]_[LEADS]"], search: ["WEBINARIO"] },
 ];
 type CampaignInfo = { id: string; name: string; effective_status?: string };
 // `campaigns` liga cada campanha ao produto dela; `stores` lista as campanhas de
@@ -631,7 +632,7 @@ async function resolveAccount(): Promise<Account> {
     id: AD_ACCOUNT_ID,
     campaigns: {},
     formCampaigns: {},
-    stores: { lsq: [], lsd: [], promo: [], li35: [], li36: [] },
+    stores: { lsq: [], lsd: [], promo: [], li35: [], li36: [], webinario: [] },
     list: [],
   };
   const searchOf = (group: (typeof GROUPS)[number]) =>

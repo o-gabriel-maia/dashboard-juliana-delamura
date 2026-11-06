@@ -33,6 +33,7 @@ import {
   FileSpreadsheet,
   Tag,
   Megaphone,
+  Video,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -358,7 +359,7 @@ type NavIcon = ComponentType<{ size?: number; strokeWidth?: number }>;
 // Logos de marca não existem no lucide-react, então são SVGs próprios.
 // Cada aba é um produto, com seu "resultado" (o campo `conversations` dos dados
 // guarda esse resultado: leads ou compras) e seus textos.
-type Kind = "lsq" | "lsd" | "promo" | "li35" | "li36";
+type Kind = "lsq" | "lsd" | "promo" | "li35" | "li36" | "webinario";
 
 const KINDS: Record<
   Kind,
@@ -423,6 +424,16 @@ const KINDS: Record<
     description:
       "Captação de leads do LI36: primeiro as campanhas do Meta Ads, depois as do Google Ads.",
   },
+  webinario: {
+    tab: "Captação Webinário LS",
+    icon: Video,
+    result: "Leads",
+    cost: "Custo por Lead",
+    unit: "leads",
+    article: "os",
+    description:
+      "Captação de leads para o webinário da Live Secreta: campanha do Meta Ads com página de inscrição (ls.applive.com.br).",
+  },
 };
 // Abas de captação com planilha de leads, pesquisa e Google Ads: a edição do
 // lançamento diz qual planilha e quais campanhas do Google entram.
@@ -440,6 +451,7 @@ function kindOf(name: string): Kind {
   if (name === KINDS.promo.tab) return "promo";
   if (name === KINDS.li35.tab) return "li35";
   if (name === KINDS.li36.tab) return "li36";
+  if (name === KINDS.webinario.tab) return "webinario";
   return "lsq";
 }
 
@@ -447,7 +459,7 @@ function kindOf(name: string): Kind {
 const STORES = ["Juliana Delamura"] as const;
 type Store = (typeof STORES)[number];
 const MULTI_STORE = (STORES as readonly string[]).length > 1;
-const KIND_ORDER: Kind[] = ["lsq", "lsd", "promo", "li35", "li36"];
+const KIND_ORDER: Kind[] = ["lsq", "lsd", "promo", "li35", "li36", "webinario"];
 const STORE_COLORS: Record<Store, string> = {
   "Juliana Delamura": "#2563eb",
 };
@@ -458,6 +470,7 @@ const KIND_COLORS: Record<Kind, string> = {
   promo: "#f59e0b",
   li35: "#7c3aed",
   li36: "#db2777",
+  webinario: "#10b981",
 };
 const storePanel = (store: Store) => `loja:${store}`;
 
@@ -2495,7 +2508,7 @@ export default function Home() {
           <div>
             <PanelHeader
               title="Resumo Geral"
-              description="Visão consolidada das campanhas de captação das Lives Secretas de quarta e de domingo, da Promo Diária, do LI35 e do LI36 no Meta Ads."
+              description="Visão consolidada das campanhas de captação das Lives Secretas de quarta e de domingo, da Promo Diária, do LI35, do LI36 e do Webinário LS no Meta Ads."
               {...headerProps}
             />
 
@@ -2507,7 +2520,7 @@ export default function Home() {
                   alcançaram <b className="text-gray-900">{formatNumber(data.totals.reach)}</b>{" "}
                   pessoas, com{" "}
                   <b className="text-gray-900">{formatNumber(data.totals.impressions)}</b>{" "}
-                  impressões. As campanhas de captação (Live Secreta de quarta e de domingo, Promo Diária, LI35 e LI36) geraram{" "}
+                  impressões. As campanhas de captação (Live Secreta de quarta e de domingo, Promo Diária, LI35, LI36 e Webinário LS) geraram{" "}
                   <b className="text-gray-900">{formatNumber(resumoTotals.conversations)}</b>{" "}
                   leads, a{" "}
                   <b className="text-gray-900">{formatBRL(resumoTotals.costPerConversation)}</b> por
@@ -2759,7 +2772,7 @@ export default function Home() {
                 refreshKey={data.updatedAt}
               />
             )}
-            <GruposSection kind={activeKind} live={selectedLive} />
+            {activeKind !== "webinario" && <GruposSection kind={activeKind} live={selectedLive} />}
           </div>
         )}
       </main>
