@@ -1107,11 +1107,8 @@ type MetricLine = {
   format: (v: number) => string;
 };
 
-function metricLines(
-  kind?: Kind,
-  labels?: { result?: string; cost?: string },
-): MetricLine[] {
-  const media: MetricLine[] = [
+function metricLines(): MetricLine[] {
+  return [
     {
       key: "cpm",
       name: "CPM",
@@ -1134,41 +1131,11 @@ function metricLines(
       format: formatRate,
     },
   ];
-  if (!kind) return media;
-  return [
-    ...media,
-    {
-      key: "conversations",
-      name: labels?.result ?? KINDS[kind].result,
-      color: "#db2777",
-      axis: "count",
-      format: formatNumber,
-    },
-    {
-      key: "costPerConversation",
-      name: labels?.cost ?? KINDS[kind].cost,
-      color: "#7c3aed",
-      axis: "money",
-      format: formatBRL,
-    },
-  ];
 }
 
-function MetricasChart({
-  data,
-  kind,
-  note,
-  resultLabel,
-  costLabel,
-}: {
-  data: DailyPoint[];
-  kind?: Kind;
-  note?: string;
-  resultLabel?: string;
-  costLabel?: string;
-}) {
+function MetricasChart({ data, note }: { data: DailyPoint[]; note?: string }) {
   const narrow = useIsNarrow();
-  const lines = metricLines(kind, { result: resultLabel, cost: costLabel });
+  const lines = metricLines();
   const order = new Map(lines.map((l, i) => [l.name, i]));
   return (
     <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -1908,6 +1875,28 @@ function subscribeNarrow(callback: () => void) {
   return () => mq.removeEventListener("change", callback);
 }
 
+const panelListeners = new Set<() => void>();
+function subscribePanel(callback: () => void) {
+  panelListeners.add(callback);
+  window.addEventListener("hashchange", callback);
+  return () => {
+    panelListeners.delete(callback);
+    window.removeEventListener("hashchange", callback);
+  };
+}
+function readPanel() {
+  try {
+    return decodeURIComponent(window.location.hash.slice(1)) || RESUMO_PANEL;
+  } catch {
+    return RESUMO_PANEL;
+  }
+}
+function setPanelInUrl(key: string) {
+  const base = window.location.pathname + window.location.search;
+  window.history.replaceState(null, "", key === RESUMO_PANEL ? base : `${base}#${encodeURIComponent(key)}`);
+  panelListeners.forEach((listener) => listener());
+}
+
 export default function Home() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1916,7 +1905,9 @@ export default function Home() {
   // Dados na tela são de outro período (filtro recém-trocado): esmaece até chegar o novo.
   const [stale, setStale] = useState(false);
   const [lastRefreshMs, setLastRefreshMs] = useState<number | null>(null);
-  const [panel, setPanel] = useState(RESUMO_PANEL);
+  // A aba aberta fica no endereço (#aba): ao atualizar a página, volta nela e não no Resumo.
+  const panel = useSyncExternalStore(subscribePanel, readPanel, () => RESUMO_PANEL);
+  const setPanel = setPanelInUrl;
   const [closedStores, setClosedStores] = useState<Store[]>([]);
   // O menu lateral só existe do tablet pra cima; no celular vira a barra do topo.
   const [sidebarChoice, setSidebarChoice] = useState<boolean | null>(null);
@@ -2679,11 +2670,7 @@ export default function Home() {
               return (
                 <>
                   <InvestimentoConversasChart kind={activeKind} data={daily} {...labels} />
-                  <MetricasChart
-                    kind={edition ? undefined : activeKind}
-                    data={daily}
-                    {...(edition ? {} : labels)}
-                  />
+                  <MetricasChart data={daily} />
                 </>
               );
             })()}
