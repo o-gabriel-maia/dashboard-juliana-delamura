@@ -104,8 +104,8 @@ const GROUPS: {
 }[] = [
   // Live Secreta: o código no começo do nome diz o dia, Q = quarta e D = domingo
   // (ex.: [LS203_Q...] e [LS204_D...]).
-  { key: "lsq", name: "Lives Secretas Quarta", tags: ["LIVE_SECRETA"], prefix: /^\[LS\d+_Q/ },
-  { key: "lsd", name: "Lives Secretas Domingo", tags: ["LIVE_SECRETA"], prefix: /^\[LS\d+_D/ },
+  { key: "lsq", name: "Captação LS Quarta", tags: ["LIVE_SECRETA"], prefix: /^\[LS\d+_Q/ },
+  { key: "lsd", name: "Captação LS Domingo", tags: ["LIVE_SECRETA"], prefix: /^\[LS\d+_D/ },
   {
     key: "promo",
     name: "Promo Diária",
@@ -115,7 +115,7 @@ const GROUPS: {
   },
   { key: "li35", name: "Lançamento LI35", tags: ["[LI35]"] },
   { key: "li36", name: "Lançamento LI36", tags: ["[LI36]_[CAPTURA]_[LEADS]"], search: ["LI36"] },
-  { key: "webinario", name: "Captação Webinário LS", tags: ["[WEBINARIO]", "[CAPTURA]", "[LEADS]"], search: ["WEBINARIO"] },
+  { key: "webinario", name: "Captação LS Webinário", tags: ["[WEBINARIO]", "[CAPTURA]", "[LEADS]"], search: ["WEBINARIO"] },
 ];
 type CampaignInfo = { id: string; name: string; effective_status?: string };
 // `campaigns` liga cada campanha ao produto dela; `stores` lista as campanhas de

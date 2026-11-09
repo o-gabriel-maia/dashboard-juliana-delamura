@@ -374,7 +374,7 @@ const KINDS: Record<
   }
 > = {
   lsq: {
-    tab: "Lives Secretas Quarta",
+    tab: "Captação LS Quarta",
     icon: CalendarDays,
     result: "Leads",
     cost: "Custo por Lead",
@@ -384,7 +384,7 @@ const KINDS: Record<
       "Captação de leads para as Lives Secretas de quarta (campanhas com código LS…_Q): formulário nativo e página de inscrição, no Meta Ads.",
   },
   lsd: {
-    tab: "Lives Secretas Domingo",
+    tab: "Captação LS Domingo",
     icon: CalendarDays,
     result: "Leads",
     cost: "Custo por Lead",
@@ -424,7 +424,7 @@ const KINDS: Record<
       "Captação de leads do LI36: primeiro as campanhas do Meta Ads, depois as do Google Ads.",
   },
   webinario: {
-    tab: "Captação Webinário LS",
+    tab: "Captação LS Webinário",
     icon: CalendarDays,
     result: "Leads",
     cost: "Custo por Lead",
