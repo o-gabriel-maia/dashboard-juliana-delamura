@@ -1837,7 +1837,7 @@ async function fetchDashboard(range: DateRange | null, fresh: boolean): Promise<
 
 const STALE_RETRY_MS = 10 * 1000;
 const MAX_STALE_RETRIES = 4;
-const LAST_DATA_KEY = "silhouette-experts-dashboard:ultimos-dados:7dias:v2";
+const LAST_DATA_KEY = "silhouette-experts-dashboard:ultimos-dados:7dias:v3";
 
 // Conveniência: guarda a última resposta boa pra tela não ficar vazia se a Meta
 // recusar uma consulta (ex.: limite de requisições).
