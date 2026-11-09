@@ -33,7 +33,6 @@ import {
   FileSpreadsheet,
   Tag,
   Megaphone,
-  Video,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -426,7 +425,7 @@ const KINDS: Record<
   },
   webinario: {
     tab: "Captação Webinário LS",
-    icon: Video,
+    icon: CalendarDays,
     result: "Leads",
     cost: "Custo por Lead",
     unit: "leads",
@@ -459,7 +458,7 @@ function kindOf(name: string): Kind {
 const STORES = ["Juliana Delamura"] as const;
 type Store = (typeof STORES)[number];
 const MULTI_STORE = (STORES as readonly string[]).length > 1;
-const KIND_ORDER: Kind[] = ["lsq", "lsd", "promo", "li35", "li36", "webinario"];
+const KIND_ORDER: Kind[] = ["lsq", "lsd", "webinario", "promo", "li35", "li36"];
 const STORE_COLORS: Record<Store, string> = {
   "Juliana Delamura": "#2563eb",
 };
