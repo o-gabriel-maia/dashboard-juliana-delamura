@@ -6,13 +6,14 @@ export const dynamic = "force-dynamic";
 type DateRange = { since: string; until: string };
 
 // Planilha de resultado da pesquisa de cada edição (LI35, LI36), aba "Leads C/UTM": uma linha por
-// inscrição, com a data, a resposta "Você já tem Silhouette?" (Sim = TS, Não =
+// inscrição, com a data, a resposta "Você já tem Silhouette?" (Sim/Sí = TS, Não/No =
 // NTS) e a UTM de origem. A planilha está com compartilhamento por link, então a
 // leitura não precisa de credencial. Só as colunas E a J são lidas (sem e-mail
 // nem telefone).
 const SHEET_IDS: Record<string, string> = {
   li35: "1zcEFVG7Lr9bKlh_pkLiSYYjByI9iyabSNLciQrvg8iM",
   li36: "1PM0HAccbA_9C2Eh2C3x2FepGmGFCI9zs89rXS2F_uQM",
+  le02: "1cJBWwd0RA_NkNnLqLJpN8CiKD92H-Ebls7-rhObEX8A",
 };
 const TAB = "Leads C/UTM";
 // Origem de tráfego pago: o nome da UTM de origem tem "paid". Meta Ads usa
@@ -161,8 +162,8 @@ export async function GET(request: Request) {
       const date = isoDate(dateBr ?? "");
       if (!date) continue;
       const a = (answer ?? "").trim().toLowerCase();
-      const isTs = a === "sim";
-      const isNts = a === "não" || a === "nao";
+      const isTs = a === "sim" || a === "sí" || a === "si";
+      const isNts = a === "não" || a === "nao" || a === "no";
       if (!isTs && !isNts) {
         if (inRange(date, range)) withoutAnswer++;
         continue;

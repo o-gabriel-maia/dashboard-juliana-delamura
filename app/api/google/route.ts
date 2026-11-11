@@ -8,10 +8,12 @@ type DateRange = { since: string; until: string };
 const CUSTOMER_ID = "7432481101";
 const LOGIN_CUSTOMER_ID = "7432481101";
 // Entram as campanhas cujo nome tem todos esses trechos, por edição do lançamento
-// (`?edition=li35` ou `li36`; sem o parâmetro vale o LI35).
+// (`?edition=li35`, `li36` ou `le02`; sem o parâmetro vale o LI35).
 const EDITION_TAGS: Record<string, string[]> = {
   li35: ["LI35"],
   li36: ["[LI36]_[CAPTURA]_[GG_ADS]"],
+  // O LE02 roda só no Meta Ads: sem campanha com essa tag, o Google Ads fica zerado.
+  le02: ["[LE02]_[CAPTURA]_[GG_ADS]"],
 };
 const API_URL = `https://googleads.googleapis.com/v25/customers/${CUSTOMER_ID}/googleAds:searchStream`;
 const DEFAULT_RANGE_DAYS = 7;

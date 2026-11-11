@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Kind = "lsq" | "lsd" | "promo" | "li35" | "li36" | "webinario";
+type Kind = "lsq" | "lsd" | "promo" | "li35" | "li36" | "le02" | "webinario";
 
 type Linha = {
   chave: string;
@@ -24,6 +24,7 @@ const CAMPANHAS_CONHECIDAS: Record<Kind, string[]> = {
     "[LI35] [ALUNAS] BLACK FRIDAY",
   ],
   li36: ["[LI36] [TS] SEM DRAMA", "[LI36] [NTS] SEM DRAMA"],
+  le02: [],
   webinario: [],
 };
 
@@ -33,6 +34,7 @@ function daAba(kind: Kind, campanha: string, live: string) {
   const nome = semAcento(campanha.trim()).toUpperCase();
   if (kind === "li35") return nome.startsWith("[LI35]");
   if (kind === "li36") return nome.startsWith("[LI36]");
+  if (kind === "le02") return nome.startsWith("[LE02]");
   if (kind === "promo") return nome.includes("PROMOCOES DIARIAS");
   if (kind === "webinario") return false;
   const m = /^\[(LS\d+_([QD]))\]/.exec(nome);
@@ -78,7 +80,7 @@ export default function GruposSection({ kind, live }: { kind: Kind; live: string
   const [salvando, setSalvando] = useState("");
   const [aviso, setAviso] = useState("");
   const [nova, setNova] = useState({ campanha: "", grupo: "", quantidade: "" });
-  const porSegmento = kind === "li35" || kind === "li36";
+  const porSegmento = kind === "li35" || kind === "li36" || kind === "le02";
 
   useEffect(() => {
     let cancelado = false;

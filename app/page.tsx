@@ -358,7 +358,7 @@ type NavIcon = ComponentType<{ size?: number; strokeWidth?: number }>;
 // Logos de marca não existem no lucide-react, então são SVGs próprios.
 // Cada aba é um produto, com seu "resultado" (o campo `conversations` dos dados
 // guarda esse resultado: leads ou compras) e seus textos.
-type Kind = "lsq" | "lsd" | "promo" | "li35" | "li36" | "webinario";
+type Kind = "lsq" | "lsd" | "promo" | "li35" | "li36" | "le02" | "webinario";
 
 const KINDS: Record<
   Kind,
@@ -423,6 +423,16 @@ const KINDS: Record<
     description:
       "Captação de leads do LI36: primeiro as campanhas do Meta Ads, depois as do Google Ads.",
   },
+  le02: {
+    tab: "Captação LE02",
+    icon: Megaphone,
+    result: "Leads",
+    cost: "Custo por Lead",
+    unit: "leads",
+    article: "os",
+    description:
+      "Captação de leads do LE02 (evento em espanhol): campanhas do Meta Ads por país. O Google Ads não roda neste evento e fica zerado.",
+  },
   webinario: {
     tab: "Captação LS Webinário",
     icon: CalendarDays,
@@ -439,6 +449,7 @@ const KINDS: Record<
 const EDITIONS: Partial<Record<Kind, { id: string; label: string }>> = {
   li35: { id: "li35", label: "LI35" },
   li36: { id: "li36", label: "LI36" },
+  le02: { id: "le02", label: "LE02" },
 };
 // Todas as abas são de captação: os resumos somam os leads delas.
 const LEAD_KIND: Kind = "lsq";
@@ -450,6 +461,7 @@ function kindOf(name: string): Kind {
   if (name === KINDS.promo.tab) return "promo";
   if (name === KINDS.li35.tab) return "li35";
   if (name === KINDS.li36.tab) return "li36";
+  if (name === KINDS.le02.tab) return "le02";
   if (name === KINDS.webinario.tab) return "webinario";
   return "lsq";
 }
@@ -458,7 +470,7 @@ function kindOf(name: string): Kind {
 const STORES = ["Juliana Delamura"] as const;
 type Store = (typeof STORES)[number];
 const MULTI_STORE = (STORES as readonly string[]).length > 1;
-const KIND_ORDER: Kind[] = ["lsq", "lsd", "webinario", "promo", "li35", "li36"];
+const KIND_ORDER: Kind[] = ["lsq", "lsd", "webinario", "promo", "li35", "li36", "le02"];
 const STORE_COLORS: Record<Store, string> = {
   "Juliana Delamura": "#2563eb",
 };
@@ -469,6 +481,7 @@ const KIND_COLORS: Record<Kind, string> = {
   promo: "#f59e0b",
   li35: "#7c3aed",
   li36: "#db2777",
+  le02: "#ea580c",
   webinario: "#10b981",
 };
 const storePanel = (store: Store) => `loja:${store}`;
@@ -563,7 +576,7 @@ const METRIC_HELP: Record<string, string> = {
   "Visualizações 100%":
     "Quantas reproduções do vídeo foram assistidas até o fim. Só vale para vídeo; imagem fica zerada.",
   "Investimento (Meta + Google)":
-    "Soma do valor investido nas campanhas do lançamento (LI35 ou LI36) no Meta Ads e no Google Ads no período.",
+    "Soma do valor investido nas campanhas do lançamento (LI35, LI36 ou LE02) no Meta Ads e no Google Ads no período.",
   "Leads Totais (planilha)":
     "Inscrições da aba de leads da planilha no período, com os filtros escolhidos (todas as origens, não só tráfego pago).",
   "Respostas da pesquisa":
@@ -1837,7 +1850,7 @@ async function fetchDashboard(range: DateRange | null, fresh: boolean): Promise<
 
 const STALE_RETRY_MS = 10 * 1000;
 const MAX_STALE_RETRIES = 4;
-const LAST_DATA_KEY = "silhouette-experts-dashboard:ultimos-dados:7dias:v3";
+const LAST_DATA_KEY = "silhouette-experts-dashboard:ultimos-dados:7dias:v4";
 
 // Conveniência: guarda a última resposta boa pra tela não ficar vazia se a Meta
 // recusar uma consulta (ex.: limite de requisições).
@@ -2498,7 +2511,7 @@ export default function Home() {
           <div>
             <PanelHeader
               title="Resumo Geral"
-              description="Visão consolidada das campanhas de captação das Lives Secretas de quarta e de domingo, da Promo Diária, do LI35, do LI36 e do Webinário LS no Meta Ads."
+              description="Visão consolidada das campanhas de captação das Lives Secretas de quarta e de domingo, da Promo Diária, do LI35, do LI36, do LE02 e do Webinário LS no Meta Ads."
               {...headerProps}
             />
 
@@ -2510,7 +2523,7 @@ export default function Home() {
                   alcançaram <b className="text-gray-900">{formatNumber(data.totals.reach)}</b>{" "}
                   pessoas, com{" "}
                   <b className="text-gray-900">{formatNumber(data.totals.impressions)}</b>{" "}
-                  impressões. As campanhas de captação (Live Secreta de quarta e de domingo, Promo Diária, LI35, LI36 e Webinário LS) geraram{" "}
+                  impressões. As campanhas de captação (Live Secreta de quarta e de domingo, Promo Diária, LI35, LI36, LE02 e Webinário LS) geraram{" "}
                   <b className="text-gray-900">{formatNumber(resumoTotals.conversations)}</b>{" "}
                   leads, a{" "}
                   <b className="text-gray-900">{formatBRL(resumoTotals.costPerConversation)}</b> por

@@ -13,6 +13,7 @@ type DateRange = { since: string; until: string };
 const SHEET_IDS: Record<string, string> = {
   li35: "1zcEFVG7Lr9bKlh_pkLiSYYjByI9iyabSNLciQrvg8iM",
   li36: "1PM0HAccbA_9C2Eh2C3x2FepGmGFCI9zs89rXS2F_uQM",
+  le02: "1cJBWwd0RA_NkNnLqLJpN8CiKD92H-Ebls7-rhObEX8A",
 };
 const TAB = "Respostas pesquisa";
 const LEADS_TAB = "Leads C/UTM";
