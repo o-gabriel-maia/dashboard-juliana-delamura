@@ -189,7 +189,7 @@ function lastDays(days: number): DateRange {
 const DEFAULT_PRESET = "7dias";
 // Período padrão de cada aba (as que não estão aqui usam o DEFAULT_PRESET). Vale até a
 // pessoa escolher um período no filtro: daí em diante a escolha dela segue em todas as abas.
-const TAB_DEFAULT_PRESET: Record<string, string> = { li36: "30dias" };
+const TAB_DEFAULT_PRESET: Record<string, string> = { li35: "30dias", li36: "30dias", le02: "30dias" };
 
 const DATE_PRESETS: {
   key: string;
@@ -2070,7 +2070,7 @@ export default function Home() {
     : undefined;
   const activeCampaign = campaignTabs.find((c) => c.id === panel);
   const activeKind = kindOf(activeCampaign?.name ?? "");
-  // Cada aba abre no seu período padrão (LI36: últimos 30 dias), a não ser que a pessoa já tenha escolhido um.
+  // Cada aba abre no seu período padrão (LI35, LI36 e LE02: últimos 30 dias), a não ser que a pessoa já tenha escolhido um.
   useEffect(() => {
     if (!activeCampaign || manualFilter.current) return;
     const wanted = TAB_DEFAULT_PRESET[activeKind] ?? DEFAULT_PRESET;
