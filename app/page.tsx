@@ -596,6 +596,10 @@ const METRIC_HELP: Record<string, string> = {
     "Inscrições da planilha em que a pessoa respondeu que já tem a Silhouette (TS = Tem Silhouette), vindas de tráfego pago.",
   "Leads NTS":
     "Inscrições da planilha em que a pessoa respondeu que ainda não tem a Silhouette (NTS = Não Tem Silhouette), vindas de tráfego pago.",
+  "Leads TS Orgânico":
+    "Inscrições da planilha de quem já tem a Silhouette (TS) que não vieram de tráfego pago: sem UTM de pago, e-mail, WhatsApp ou orgânico. Não entram no custo por lead.",
+  "Leads NTS Orgânico":
+    "Inscrições da planilha de quem ainda não tem a Silhouette (NTS) que não vieram de tráfego pago: sem UTM de pago, e-mail, WhatsApp ou orgânico. Não entram no custo por lead.",
   "Custo por Lead TS":
     "Investimento (Meta + Google) dividido pelos leads TS da planilha vindos de tráfego pago. Quanto menor, melhor.",
   "Custo por Lead (TS + NTS)":
@@ -2922,6 +2926,9 @@ type TsNtsDay = {
   tsGoogle: number;
   ntsMeta: number;
   ntsGoogle: number;
+  // Inscrições sem UTM de pago (orgânico, e-mail, WhatsApp, sem UTM).
+  tsOrganic: number;
+  ntsOrganic: number;
 };
 
 function formatTableDate(iso: string) {
@@ -2949,8 +2956,22 @@ function TsNtsDailyTable({ rows }: { rows: TsNtsDay[] }) {
       ntsMeta: a.ntsMeta + l.ntsMeta,
       ntsGoogle: a.ntsGoogle + l.ntsGoogle,
       ntsTotal: a.ntsTotal + l.ntsTotal,
+      tsOrganic: a.tsOrganic + l.tsOrganic,
+      ntsOrganic: a.ntsOrganic + l.ntsOrganic,
     }),
-    { metaSpend: 0, googleSpend: 0, spend: 0, tsMeta: 0, tsGoogle: 0, tsTotal: 0, ntsMeta: 0, ntsGoogle: 0, ntsTotal: 0 },
+    {
+      metaSpend: 0,
+      googleSpend: 0,
+      spend: 0,
+      tsMeta: 0,
+      tsGoogle: 0,
+      tsTotal: 0,
+      ntsMeta: 0,
+      ntsGoogle: 0,
+      ntsTotal: 0,
+      tsOrganic: 0,
+      ntsOrganic: 0,
+    },
   );
   const cost = (spend: number, leads: number) => (leads > 0 ? spend / leads : null);
   const head = "px-2.5 py-2.5 text-center";
@@ -2962,20 +2983,22 @@ function TsNtsDailyTable({ rows }: { rows: TsNtsDay[] }) {
     { label: "Leads TS Meta", get: (l) => formatNumber(l.tsMeta) },
     { label: "Leads TS Google", get: (l) => formatNumber(l.tsGoogle) },
     { label: "Leads TS Total", get: (l) => formatNumber(l.tsTotal), strong: true },
+    { label: "Leads TS Orgânico", get: (l) => formatNumber(l.tsOrganic) },
     { label: "Custo por Lead TS", get: (l) => formatBRL(cost(l.spend, l.tsTotal)) },
     { label: "Leads NTS Meta", get: (l) => formatNumber(l.ntsMeta) },
     { label: "Leads NTS Google", get: (l) => formatNumber(l.ntsGoogle) },
     { label: "Leads NTS Total", get: (l) => formatNumber(l.ntsTotal), strong: true },
+    { label: "Leads NTS Orgânico", get: (l) => formatNumber(l.ntsOrganic) },
     { label: "Custo por Lead NTS", get: (l) => formatBRL(cost(l.spend, l.ntsTotal)) },
   ];
   return (
     <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <h3 className="mb-3 text-sm font-semibold text-gray-900">
         Investimento, Leads TS e Leads NTS por Dia
-        <ChartNote note="(só tráfego pago, mais recente primeiro)" />
+        <ChartNote note="(Meta, Google e Total são tráfego pago; o orgânico são as inscrições sem UTM de pago, sem investimento; mais recente primeiro)" />
       </h3>
       <div className="max-h-[560px] overflow-auto">
-        <table className="w-full text-sm" style={{ minWidth: 1280 }}>
+        <table className="w-full text-sm" style={{ minWidth: 1500 }}>
           <thead className="sticky top-0 z-10 bg-gray-50">
             <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
               <th className="px-2.5 py-2.5 text-left">Data</th>
@@ -3333,6 +3356,8 @@ function TsLeadsSection({
       tsGoogle: d.tsGoogle,
       ntsMeta: d.ntsPaid - d.ntsGoogle,
       ntsGoogle: d.ntsGoogle,
+      tsOrganic: d.tsOther,
+      ntsOrganic: d.ntsOther,
     };
   });
   const ratio = (a: number, b: number) => (b > 0 ? a / b : null);
@@ -3376,6 +3401,20 @@ function TsLeadsSection({
           trend: "neutral",
           current: cur.ntsPaid,
           previous: prev.ntsPaid,
+          format: formatNumber,
+        },
+        {
+          label: "Leads TS Orgânico",
+          trend: "neutral",
+          current: cur.tsOther,
+          previous: prev.tsOther,
+          format: formatNumber,
+        },
+        {
+          label: "Leads NTS Orgânico",
+          trend: "neutral",
+          current: cur.ntsOther,
+          previous: prev.ntsOther,
           format: formatNumber,
         },
         {
@@ -3462,7 +3501,7 @@ function TsLeadsSection({
           <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 className="mb-4 text-sm font-semibold text-gray-900">
               Investimento (Meta e Google), Leads TS e Leads NTS por Dia
-              <ChartNote note="(barras: investimento de cada plataforma; linhas: leads de tráfego pago e custo por lead, que aparece ao passar o mouse)" />
+              <ChartNote note="(barras: investimento de cada plataforma; linhas cheias: leads de tráfego pago e custo por lead, que aparece ao passar o mouse; linhas tracejadas: leads orgânicos, sem UTM de pago)" />
             </h3>
             <ResponsiveContainer width="100%" height={300}>
               <ComposedChart
@@ -3476,6 +3515,8 @@ function TsLeadsSection({
                     googleSpend: d.googleSpend,
                     ts,
                     nts,
+                    tsOrganic: d.tsOrganic,
+                    ntsOrganic: d.ntsOrganic,
                     costTs: ts > 0 ? spend / ts : null,
                     costNts: nts > 0 ? spend / nts : null,
                   };
@@ -3558,6 +3599,26 @@ function TsLeadsSection({
                   stroke="#f59e0b"
                   strokeWidth={2}
                   dot={{ r: 3, fill: "#f59e0b", stroke: "#ffffff", strokeWidth: 2 }}
+                />
+                <Line
+                  yAxisId="count"
+                  type="monotone"
+                  dataKey="tsOrganic"
+                  name="Leads TS Orgânico"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                  dot={false}
+                />
+                <Line
+                  yAxisId="count"
+                  type="monotone"
+                  dataKey="ntsOrganic"
+                  name="Leads NTS Orgânico"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                  dot={false}
                 />
                 <Line
                   yAxisId="cost"
