@@ -4125,40 +4125,44 @@ function GoogleAdsSection({
             </div>
           )}
 
-          <SectionTitle note="Soma das duas plataformas no período. Leads TS vêm da planilha, pela UTM de cada plataforma; o custo por lead TS do total é o investimento somado dividido pelos leads TS somados.">
-            Meta Ads + Google Ads
-          </SectionTitle>
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <table className="w-full text-sm" style={{ minWidth: 640 }}>
-              <thead>
-                <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
-                  <th className="px-2.5 py-2.5 text-left">Plataforma</th>
-                  <th className="px-2.5 py-2.5 text-center">Valor Investido</th>
-                  <th className="px-2.5 py-2.5 text-center">Leads TS</th>
-                  <th className="px-2.5 py-2.5 text-center">Custo por Lead TS</th>
-                  <th className="px-2.5 py-2.5 text-center">Impressões</th>
-                  <th className="px-2.5 py-2.5 text-center">Cliques</th>
-                  <th className="px-2.5 py-2.5 text-center">CTR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {platformRows.map((row) => (
-                  <tr
-                    key={row.name}
-                    className={`border-b border-gray-100 ${row.name === "Total" ? "bg-gray-50 font-semibold" : ""}`}
-                  >
-                    <td className="px-2.5 py-2.5 text-left text-gray-900">{row.name}</td>
-                    <td className="px-2.5 py-2.5 text-center">{formatBRL(row.spend)}</td>
-                    <td className="px-2.5 py-2.5 text-center">{formatNumber(row.leads)}</td>
-                    <td className="px-2.5 py-2.5 text-center">{formatBRL(row.cost)}</td>
-                    <td className="px-2.5 py-2.5 text-center">{formatNumber(row.impressions)}</td>
-                    <td className="px-2.5 py-2.5 text-center">{formatNumber(row.clicks)}</td>
-                    <td className="px-2.5 py-2.5 text-center">{formatRate(row.ctr)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {kind !== "le02" && (
+            <>
+              <SectionTitle note="Soma das duas plataformas no período. Leads TS vêm da planilha, pela UTM de cada plataforma; o custo por lead TS do total é o investimento somado dividido pelos leads TS somados.">
+                Meta Ads + Google Ads
+              </SectionTitle>
+              <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <table className="w-full text-sm" style={{ minWidth: 640 }}>
+                  <thead>
+                    <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
+                      <th className="px-2.5 py-2.5 text-left">Plataforma</th>
+                      <th className="px-2.5 py-2.5 text-center">Valor Investido</th>
+                      <th className="px-2.5 py-2.5 text-center">Leads TS</th>
+                      <th className="px-2.5 py-2.5 text-center">Custo por Lead TS</th>
+                      <th className="px-2.5 py-2.5 text-center">Impressões</th>
+                      <th className="px-2.5 py-2.5 text-center">Cliques</th>
+                      <th className="px-2.5 py-2.5 text-center">CTR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {platformRows.map((row) => (
+                      <tr
+                        key={row.name}
+                        className={`border-b border-gray-100 ${row.name === "Total" ? "bg-gray-50 font-semibold" : ""}`}
+                      >
+                        <td className="px-2.5 py-2.5 text-left text-gray-900">{row.name}</td>
+                        <td className="px-2.5 py-2.5 text-center">{formatBRL(row.spend)}</td>
+                        <td className="px-2.5 py-2.5 text-center">{formatNumber(row.leads)}</td>
+                        <td className="px-2.5 py-2.5 text-center">{formatBRL(row.cost)}</td>
+                        <td className="px-2.5 py-2.5 text-center">{formatNumber(row.impressions)}</td>
+                        <td className="px-2.5 py-2.5 text-center">{formatNumber(row.clicks)}</td>
+                        <td className="px-2.5 py-2.5 text-center">{formatRate(row.ctr)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
 

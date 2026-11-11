@@ -15,6 +15,8 @@ const SHEET_IDS: Record<string, string> = {
   li36: "1PM0HAccbA_9C2Eh2C3x2FepGmGFCI9zs89rXS2F_uQM",
   le02: "1cJBWwd0RA_NkNnLqLJpN8CiKD92H-Ebls7-rhObEX8A",
 };
+// Edições que só começam a rodar numa data: os dias antes dela não entram no gráfico por dia.
+const EDITION_START: Record<string, string> = { le02: "2026-11-12" };
 const TAB = "Respostas pesquisa";
 const LEADS_TAB = "Leads C/UTM";
 const DEFAULT_RANGE_DAYS = 7;
@@ -269,7 +271,9 @@ export async function GET(request: Request) {
     const answersByDay = new Map<string, number>();
     for (const r of rows) answersByDay.set(r.date, (answersByDay.get(r.date) ?? 0) + 1);
     const daily = [];
+    const firstDay = EDITION_START[searchParams.get("edition") ?? "li35"] ?? "0000-00-00";
     for (let date = range.since; date <= range.until; date = addDays(date, 1)) {
+      if (date < firstDay) continue;
       const leads = leadsByDay.get(date) ?? 0;
       const responses = answersByDay.get(date) ?? 0;
       daily.push({ date, leads, responses, rate: leads > 0 ? (responses / leads) * 100 : null });

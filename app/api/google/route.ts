@@ -15,6 +15,8 @@ const EDITION_TAGS: Record<string, string[]> = {
   // O LE02 roda só no Meta Ads: sem campanha com essa tag, o Google Ads fica zerado.
   le02: ["[LE02]_[CAPTURA]_[GG_ADS]"],
 };
+// Edições que só começam a rodar numa data: os dias antes dela não entram nas tabelas por dia.
+const EDITION_START: Record<string, string> = { le02: "2026-11-12" };
 const API_URL = `https://googleads.googleapis.com/v25/customers/${CUSTOMER_ID}/googleAds:searchStream`;
 const DEFAULT_RANGE_DAYS = 7;
 const MAX_RANGE_DAYS = 370;
@@ -327,7 +329,9 @@ export async function GET(request: Request) {
           adsets: adGroupLevel.sort(bySpend),
           ads: adLevel.sort(bySpend),
         },
-        dailyChart: buildDailyPoints(byDate, range),
+        dailyChart: buildDailyPoints(byDate, range).filter(
+          (p) => p.date >= (EDITION_START[searchParams.get("edition") ?? "li35"] ?? "0000-00-00"),
+        ),
       },
       { headers: cacheHeaders }
     );

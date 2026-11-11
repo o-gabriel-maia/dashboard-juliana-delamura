@@ -15,6 +15,8 @@ const SHEET_IDS: Record<string, string> = {
   li36: "1PM0HAccbA_9C2Eh2C3x2FepGmGFCI9zs89rXS2F_uQM",
   le02: "1cJBWwd0RA_NkNnLqLJpN8CiKD92H-Ebls7-rhObEX8A",
 };
+// Edições que só começam a rodar numa data: os dias antes dela não entram na tabela por dia.
+const EDITION_START: Record<string, string> = { le02: "2026-11-12" };
 const TAB = "Leads C/UTM";
 // Origem de tráfego pago: o nome da UTM de origem tem "paid". Meta Ads usa
 // fb-paid-hot e fb-paid-cold; o Google Ads (YouTube) usa yt-paid-hot.
@@ -193,7 +195,9 @@ export async function GET(request: Request) {
     }
 
     const daily = [];
+    const firstDay = EDITION_START[searchParams.get("edition") ?? "li35"] ?? "0000-00-00";
     for (let date = range.since; date <= range.until; date = addDays(date, 1)) {
+      if (date < firstDay) continue;
       daily.push({ date, ...(byDate.get(date) ?? EMPTY) });
     }
     const totalsOf = (r: DateRange) =>

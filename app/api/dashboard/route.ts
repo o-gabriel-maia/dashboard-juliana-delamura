@@ -118,6 +118,8 @@ const GROUPS: {
   { key: "le02", name: "Captação LE02", tags: ["[LE02]_[CAPTURA]_[LEADS]"], search: ["LE02"] },
   { key: "webinario", name: "Captação LS Webinário", tags: ["[WEBINARIO]", "[CAPTURA]", "[LEADS]"], search: ["WEBINARIO"] },
 ];
+// Edições que só começam a rodar numa data: os dias antes dela não aparecem nas tabelas e gráficos.
+const EDITION_START: Record<string, string> = { le02: "2026-11-12" };
 type CampaignInfo = { id: string; name: string; effective_status?: string };
 // `campaigns` liga cada campanha ao produto dela; `stores` lista as campanhas de
 // cada produto. Os dois são montados a cada carga, a partir dos nomes.
@@ -988,7 +990,9 @@ export async function GET(request: Request) {
     const dailyByCampaign: Record<string, ReturnType<typeof buildDailyPoints>> = {};
     const previousByCampaign: Record<string, ReturnType<typeof derive>> = {};
     for (const group of groupKeys) {
-      dailyByCampaign[group] = buildDailyPoints(groupDaily.get(group), range);
+      dailyByCampaign[group] = buildDailyPoints(groupDaily.get(group), range).filter(
+        (p) => p.date >= (EDITION_START[group] ?? "0000-00-00"),
+      );
       previousByCampaign[group] = derive({
         ...(previousByGroup.get(group) ?? EMPTY_META_AGG),
         reach: groupReach.get(group)?.previousReach ?? 0,
