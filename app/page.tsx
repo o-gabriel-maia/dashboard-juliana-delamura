@@ -187,6 +187,9 @@ function lastDays(days: number): DateRange {
 }
 
 const DEFAULT_PRESET = "7dias";
+// Período padrão de cada aba (as que não estão aqui usam o DEFAULT_PRESET). Vale até a
+// pessoa escolher um período no filtro: daí em diante a escolha dela segue em todas as abas.
+const TAB_DEFAULT_PRESET: Record<string, string> = { li36: "30dias" };
 
 const DATE_PRESETS: {
   key: string;
@@ -253,6 +256,12 @@ function DateRangeFilter({
   loading?: boolean;
 }) {
   const [draft, setDraft] = useState<FilterState>(applied);
+  // Quando o período aplicado muda por fora (ex.: a aba LI36 abre em 30 dias), o seletor acompanha.
+  const [seenApplied, setSeenApplied] = useState<FilterState>(applied);
+  if (seenApplied !== applied) {
+    setSeenApplied(applied);
+    setDraft(applied);
+  }
   const invalidCustom = draft.preset === "personalizado" && resolveFilter(draft) === null;
 
   return (
@@ -2017,7 +2026,9 @@ export default function Home() {
     return () => clearInterval(tick);
   }, []);
 
-  const applyFilter = (next: FilterState) => {
+  const manualFilter = useRef(false);
+  const applyFilter = (next: FilterState, manual = true) => {
+    if (manual) manualFilter.current = true;
     filterRef.current = next;
     setFilter(next);
     setStale(true);
@@ -2055,6 +2066,15 @@ export default function Home() {
     : undefined;
   const activeCampaign = campaignTabs.find((c) => c.id === panel);
   const activeKind = kindOf(activeCampaign?.name ?? "");
+  // Cada aba abre no seu período padrão (LI36: últimos 30 dias), a não ser que a pessoa já tenha escolhido um.
+  useEffect(() => {
+    if (!activeCampaign || manualFilter.current) return;
+    const wanted = TAB_DEFAULT_PRESET[activeKind] ?? DEFAULT_PRESET;
+    if (filterRef.current.preset !== wanted) {
+      applyFilter({ preset: wanted, customSince: "", customUntil: "" }, false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKind, !!activeCampaign]);
   // Filtro por número da live, só nas abas de Live Secreta; cada aba lembra a sua escolha.
   const [liveByPanel, setLiveByPanel] = useState<Record<string, string>>({});
   const liveOptions = useMemo(() => {
@@ -3385,7 +3405,7 @@ function TsLeadsSection({
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 className="mb-3 text-sm font-semibold text-gray-900">
               Por plataforma
-              <ChartNote note="(investimento de cada plataforma e os leads da planilha com a UTM dela)" />
+              <ChartNote note="(investimento de cada plataforma e os leads da planilha com a UTM dela; o orgânico são as inscrições sem UTM de pago, sem investimento)" />
             </h3>
             <table className="w-full text-sm" style={{ minWidth: 640 }}>
               <thead>
@@ -3408,20 +3428,30 @@ function TsLeadsSection({
                     nts: cur.ntsPaid - cur.ntsGoogle,
                   },
                   { name: "Google Ads", spend: googleSpend, ts: cur.tsGoogle, nts: cur.ntsGoogle },
-                  { name: "Total", spend, ts: cur.tsPaid, nts: cur.ntsPaid },
+                  { name: "Total tráfego pago", spend, ts: cur.tsPaid, nts: cur.ntsPaid },
+                  // Inscrições sem UTM de pago (orgânico, e-mail, WhatsApp, sem UTM): não têm investimento.
+                  { name: "Orgânico (sem UTM de pago)", spend: null, ts: cur.tsOther, nts: cur.ntsOther },
+                  {
+                    name: "Total geral (pago + orgânico)",
+                    spend,
+                    ts: cur.tsPaid + cur.tsOther,
+                    nts: cur.ntsPaid + cur.ntsOther,
+                  },
                 ].map((row) => (
                   <tr
                     key={row.name}
-                    className={`border-b border-gray-100 ${row.name === "Total" ? "bg-gray-50 font-semibold" : ""}`}
+                    className={`border-b border-gray-100 ${row.name.startsWith("Total") ? "bg-gray-50 font-semibold" : ""}`}
                   >
                     <td className="px-2.5 py-2.5 text-left text-gray-900">{row.name}</td>
-                    <td className="px-2.5 py-2.5 text-center">{formatBRL(row.spend)}</td>
+                    <td className="px-2.5 py-2.5 text-center">{row.spend === null ? "—" : formatBRL(row.spend)}</td>
                     <td className="px-2.5 py-2.5 text-center">{formatNumber(row.ts)}</td>
                     <td className="px-2.5 py-2.5 text-center">{formatNumber(row.nts)}</td>
                     <td className="px-2.5 py-2.5 text-center">{formatRate(pct(row.ts, row.ts + row.nts))}</td>
-                    <td className="px-2.5 py-2.5 text-center">{formatBRL(ratio(row.spend, row.ts))}</td>
                     <td className="px-2.5 py-2.5 text-center">
-                      {formatBRL(ratio(row.spend, row.ts + row.nts))}
+                      {row.spend === null ? "—" : formatBRL(ratio(row.spend, row.ts))}
+                    </td>
+                    <td className="px-2.5 py-2.5 text-center">
+                      {row.spend === null ? "—" : formatBRL(ratio(row.spend, row.ts + row.nts))}
                     </td>
                   </tr>
                 ))}
