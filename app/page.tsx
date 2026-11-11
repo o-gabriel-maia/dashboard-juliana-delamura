@@ -4095,39 +4095,6 @@ function GoogleAdsSection({
     );
   };
 
-  const metaTs = leads ? leads.totals.tsPaid - leads.totals.tsGoogle : null;
-  const platforms: { name: string; m: Metrics; ts: number | null }[] = data
-    ? [
-        { name: "Meta Ads", m: meta, ts: metaTs },
-        { name: "Google Ads", m: data.totals, ts: googleTs },
-      ]
-    : [];
-  const sum = (get: (m: Metrics) => number) => platforms.reduce((s, p) => s + get(p.m), 0);
-  const totalSpend = sum((m) => m.spend);
-  const totalLeads: number | null = leads ? (metaTs ?? 0) + (googleTs ?? 0) : null;
-  const totalImpressions = sum((m) => m.impressions);
-  const totalClicks = sum((m) => m.linkClicks);
-  const platformRows = [
-    ...platforms.map((p) => ({
-      name: p.name,
-      spend: p.m.spend,
-      leads: p.ts,
-      cost: p.ts !== null && p.ts > 0 ? p.m.spend / p.ts : null,
-      impressions: p.m.impressions,
-      clicks: p.m.linkClicks,
-      ctr: p.m.ctrLink,
-    })),
-    {
-      name: "Total",
-      spend: totalSpend,
-      leads: totalLeads,
-      cost: totalLeads !== null && totalLeads > 0 ? totalSpend / totalLeads : null,
-      impressions: totalImpressions,
-      clicks: totalClicks,
-      ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : null,
-    },
-  ];
-
   return (
     <div>
       <SectionTitle
@@ -4214,45 +4181,6 @@ function GoogleAdsSection({
                 </ul>
               )}
             </div>
-          )}
-
-          {kind !== "le02" && (
-            <>
-              <SectionTitle note="Soma das duas plataformas no período. Leads TS vêm da planilha, pela UTM de cada plataforma; o custo por lead TS do total é o investimento somado dividido pelos leads TS somados.">
-                Meta Ads + Google Ads
-              </SectionTitle>
-              <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <table className="w-full text-sm" style={{ minWidth: 640 }}>
-                  <thead>
-                    <tr className="border-b border-gray-200 text-xs tracking-wide text-gray-500">
-                      <th className="px-2.5 py-2.5 text-left">Plataforma</th>
-                      <th className="px-2.5 py-2.5 text-center">Valor Investido</th>
-                      <th className="px-2.5 py-2.5 text-center">Leads TS</th>
-                      <th className="px-2.5 py-2.5 text-center">Custo por Lead TS</th>
-                      <th className="px-2.5 py-2.5 text-center">Impressões</th>
-                      <th className="px-2.5 py-2.5 text-center">Cliques</th>
-                      <th className="px-2.5 py-2.5 text-center">CTR</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {platformRows.map((row) => (
-                      <tr
-                        key={row.name}
-                        className={`border-b border-gray-100 ${row.name === "Total" ? "bg-gray-50 font-semibold" : ""}`}
-                      >
-                        <td className="px-2.5 py-2.5 text-left text-gray-900">{row.name}</td>
-                        <td className="px-2.5 py-2.5 text-center">{formatBRL(row.spend)}</td>
-                        <td className="px-2.5 py-2.5 text-center">{formatNumber(row.leads)}</td>
-                        <td className="px-2.5 py-2.5 text-center">{formatBRL(row.cost)}</td>
-                        <td className="px-2.5 py-2.5 text-center">{formatNumber(row.impressions)}</td>
-                        <td className="px-2.5 py-2.5 text-center">{formatNumber(row.clicks)}</td>
-                        <td className="px-2.5 py-2.5 text-center">{formatRate(row.ctr)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
           )}
         </div>
       )}
