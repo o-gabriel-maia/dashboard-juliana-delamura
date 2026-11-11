@@ -20,7 +20,10 @@ const EDITION_START: Record<string, string> = { le02: "2026-11-12" };
 const TAB = "Leads C/UTM";
 // Origem de tráfego pago: o nome da UTM de origem tem "paid". Meta Ads usa
 // fb-paid-hot e fb-paid-cold; o Google Ads (YouTube) usa yt-paid-hot.
-const PAID_SOURCE = /paid/i;
+// Também entram as inscrições com a UTM sem preencher (o texto literal {utm_source}): a tabela
+// dinâmica da planilha as conta como tráfego pago e elas ficam no Meta (o Google tem yt-paid-hot).
+const PAID_SOURCE = /paid|\{utm_source\}/i;
+const UNFILLED_SOURCE = /\{utm_source\}/i;
 // Dentro do tráfego pago, o que é do Google Ads (YouTube); o resto é do Meta Ads.
 const GOOGLE_SOURCE = /(^|[-_])(yt|youtube|google|gads)([-_]|$)/i;
 const DEFAULT_RANGE_DAYS = 7;
@@ -178,7 +181,7 @@ export async function GET(request: Request) {
         if (isTs) day.tsGoogle++;
         else day.ntsGoogle++;
       }
-      if (paid && inRange(date, range)) {
+      if (paid && !UNFILLED_SOURCE.test(source ?? "") && inRange(date, range)) {
         const platform = GOOGLE_SOURCE.test(source ?? "") ? "google" : "meta";
         const add = (map: typeof byAdset, raw: string) => {
           const name = raw.trim() || "(sem nome)";
