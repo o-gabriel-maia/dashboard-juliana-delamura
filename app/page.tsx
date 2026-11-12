@@ -2249,6 +2249,27 @@ export default function Home() {
   const leads = leadsOfEdition?.data;
   const leadsError = leadsOfEdition?.error;
 
+  // Taxa de carregamento e de conversão da página por dia. Nas edições (LI35, LI36, LE02) a conversão usa os
+  // leads da planilha (tráfego pago do Meta); no Webinário, os leads da campanha.
+  const pageRatesNote =
+    edition && leads
+      ? "Carregamento: visitas à página ÷ cliques no link. Conversão: leads na planilha (tráfego pago do Meta) ÷ visitas à página."
+      : "Carregamento: visitas à página ÷ cliques no link. Conversão: leads da campanha ÷ visitas à página.";
+  const pageRates = scopeDaily.map((p) => {
+    const day = leads?.daily.find((d) => d.date === p.date);
+    const sheetLeads = day ? day.tsPaid - day.tsGoogle + (day.ntsPaid - day.ntsGoogle) : 0;
+    return {
+      date: p.date,
+      loadRate: p.loadRate,
+      conversionRate:
+        edition && leads
+          ? p.landingPageViews > 0
+            ? (sheetLeads / p.landingPageViews) * 100
+            : null
+          : p.pageConversionRate,
+    };
+  });
+
   const periodLabel = data
     ? data.range.since === data.range.until
       ? formatFullDate(data.range.since)
@@ -2717,6 +2738,8 @@ export default function Home() {
                 googleAds={google.data?.levels.ads ?? []}
                 leads={leads}
                 leadsError={leadsError}
+                pageRates={pageRates}
+                pageRatesNote={pageRatesNote}
               />
             )}
             {edition && (
@@ -2770,29 +2793,7 @@ export default function Home() {
                 <>
                   <InvestimentoConversasChart kind={activeKind} data={daily} {...labels} />
                   <MetricasChart data={daily} />
-                  {(activeKind === "webinario" || !!edition) && (
-                    <PageRatesChart
-                      note={
-                        edition && leads
-                          ? "Carregamento: visitas à página ÷ cliques no link. Conversão: leads na planilha (tráfego pago do Meta) ÷ visitas à página."
-                          : "Carregamento: visitas à página ÷ cliques no link. Conversão: leads da campanha ÷ visitas à página."
-                      }
-                      data={points.map((p) => {
-                        const day = leads?.daily.find((d) => d.date === p.date);
-                        const sheetLeads = day ? day.tsPaid - day.tsGoogle + (day.ntsPaid - day.ntsGoogle) : 0;
-                        return {
-                          date: p.date,
-                          loadRate: p.loadRate,
-                          conversionRate:
-                            edition && leads
-                              ? p.landingPageViews > 0
-                                ? (sheetLeads / p.landingPageViews) * 100
-                                : null
-                              : p.pageConversionRate,
-                        };
-                      })}
-                    />
-                  )}
+                  {activeKind === "webinario" && <PageRatesChart note={pageRatesNote} data={pageRates} />}
                 </>
               );
             })()}
@@ -3409,6 +3410,8 @@ function TsLeadsSection({
   googleAds,
   leads,
   leadsError,
+  pageRates,
+  pageRatesNote,
 }: {
   part?: "top" | "rest";
   label: string;
@@ -3424,6 +3427,9 @@ function TsLeadsSection({
   googleAds: Row[];
   leads?: LeadsData;
   leadsError?: string;
+  // Só a parte "top" usa: gráfico de taxa de carregamento e de conversão da página, logo abaixo do gráfico por dia.
+  pageRates?: { date: string; loadRate: number | null; conversionRate: number | null }[];
+  pageRatesNote?: string;
 }) {
   const narrow = useIsNarrow();
   const data = leads;
@@ -3730,6 +3736,7 @@ function TsLeadsSection({
             </ResponsiveContainer>
           </div>
 
+          {pageRates && <PageRatesChart note={pageRatesNote ?? ""} data={pageRates} />}
           <TsNtsDailyTable rows={days} />
         <TsByNameTable
             title="Custo por Lead TS por Público (conjunto ou grupo)"
