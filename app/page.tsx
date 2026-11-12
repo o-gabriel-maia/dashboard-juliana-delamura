@@ -49,6 +49,9 @@ type DailyPoint = {
   ctrLink: number | null;
   cpcLink: number | null;
   conversationRate: number | null;
+  landingPageViews: number;
+  loadRate: number | null;
+  pageConversionRate: number | null;
 };
 
 type PieSlice = { label: string; value: number; color?: string };
@@ -1221,6 +1224,66 @@ function MetricasChart({ data, note }: { data: DailyPoint[]; note?: string }) {
             <Line
               key={l.key}
               yAxisId={l.axis}
+              type="monotone"
+              dataKey={l.key}
+              name={l.name}
+              stroke={l.color}
+              strokeWidth={2}
+              dot={{ r: 3, fill: l.color, stroke: "#ffffff", strokeWidth: 2 }}
+              connectNulls
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// Taxa de carregamento (visitas à página ÷ cliques no link) e de conversão da página por dia.
+function PageRatesChart({
+  data,
+  note,
+}: {
+  data: { date: string; loadRate: number | null; conversionRate: number | null }[];
+  note: string;
+}) {
+  const narrow = useIsNarrow();
+  const lines = [
+    { key: "loadRate", name: "Taxa de Carregamento", color: "#3b5bdb" },
+    { key: "conversionRate", name: "Taxa de Conversão da Página", color: "#059669" },
+  ];
+  return (
+    <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <h3 className="mb-4 text-sm font-semibold text-gray-900">
+        Taxa de Carregamento e Taxa de Conversão da Página por Dia
+        <ChartNote note={note} />
+      </h3>
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid stroke="#e5e7eb" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={formatChartDate}
+            tick={AXIS_TICK}
+            axisLine={AXIS_LINE}
+            tickLine={false}
+            minTickGap={16}
+          />
+          <YAxis
+            domain={[0, 100]}
+            ticks={[0, 25, 50, 75, 100]}
+            tick={AXIS_TICK}
+            axisLine={AXIS_LINE}
+            tickLine={false}
+            tickFormatter={(v: number) => `${v}%`}
+            width={48}
+            hide={narrow}
+          />
+          <Tooltip content={<ChartTooltip valueFormatter={(v) => formatRate(v)} />} />
+          <Legend wrapperStyle={{ fontSize: 12, color: "#6b7280" }} />
+          {lines.map((l) => (
+            <Line
+              key={l.key}
               type="monotone"
               dataKey={l.key}
               name={l.name}
@@ -2707,6 +2770,29 @@ export default function Home() {
                 <>
                   <InvestimentoConversasChart kind={activeKind} data={daily} {...labels} />
                   <MetricasChart data={daily} />
+                  {(activeKind === "webinario" || !!edition) && (
+                    <PageRatesChart
+                      note={
+                        edition && leads
+                          ? "Carregamento: visitas à página ÷ cliques no link. Conversão: leads na planilha (tráfego pago do Meta) ÷ visitas à página."
+                          : "Carregamento: visitas à página ÷ cliques no link. Conversão: leads da campanha ÷ visitas à página."
+                      }
+                      data={points.map((p) => {
+                        const day = leads?.daily.find((d) => d.date === p.date);
+                        const sheetLeads = day ? day.tsPaid - day.tsGoogle + (day.ntsPaid - day.ntsGoogle) : 0;
+                        return {
+                          date: p.date,
+                          loadRate: p.loadRate,
+                          conversionRate:
+                            edition && leads
+                              ? p.landingPageViews > 0
+                                ? (sheetLeads / p.landingPageViews) * 100
+                                : null
+                              : p.pageConversionRate,
+                        };
+                      })}
+                    />
+                  )}
                 </>
               );
             })()}

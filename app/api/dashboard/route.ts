@@ -601,6 +601,10 @@ function buildDailyPoints(byDate: Map<string, MetaAgg> | undefined, range: DateR
       ctrLink: d.impressions > 0 ? (d.linkClicks / d.impressions) * 100 : null,
       cpcLink: d.linkClicks > 0 ? d.spend / d.linkClicks : null,
       conversationRate: d.linkClicks > 0 ? (d.conversations / d.linkClicks) * 100 : null,
+      landingPageViews: d.landingPageViews,
+      // Mesmas definições das taxas da página nos cartões: carregamento = visitas ÷ cliques no link; conversão = leads ÷ visitas.
+      loadRate: d.pageClicks > 0 ? (d.landingPageViews / d.pageClicks) * 100 : null,
+      pageConversionRate: d.landingPageViews > 0 ? (d.pageConversions / d.landingPageViews) * 100 : null,
     });
   }
   return days;
