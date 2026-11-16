@@ -123,7 +123,6 @@ type DashboardData = {
       age: PieSlice[];
       gender: PieSlice[];
       placement: PieSlice[];
-      device: PieSlice[];
     }
   >;
 };
@@ -2176,7 +2175,7 @@ export default function Home() {
     !!activeCampaign && r.campaignId === activeCampaign.id && (!selectedLive || r.live === selectedLive);
   const activeResult = KINDS[activeKind].result;
   const activeUnit = KINDS[activeKind].unit;
-  // Quebras por idade, gênero, posicionamento e dispositivo: só da aba aberta,
+  // Quebras por idade, gênero e posicionamento: só da aba aberta,
   // pedidas depois que a tela principal já carregou.
   const [breakdownData, setBreakdownData] = useState<{
     group: string;
@@ -2829,7 +2828,7 @@ export default function Home() {
               />
             )}
             {breakdowns?.age && breakdowns.age.length > 0 && (scopeRow ?? activeCampaign).conversations > 0 && (
-              <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
+              <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
                 <DonutChart
                   title={`${activeResult} por Idade`}
                   description={`Faixa de idade das pessoas que geraram ${activeUnit}.`}
@@ -2848,13 +2847,6 @@ export default function Home() {
                   title={`${activeResult} por Posicionamento`}
                   description="Em que lugar do Instagram ou do Facebook o anúncio apareceu antes do resultado."
                   data={breakdowns.placement}
-                  centerLabel={activeUnit}
-                  format={formatNumber}
-                />
-                <DonutChart
-                  title={`${activeResult} por Dispositivo`}
-                  description="Sistema do aparelho de quem viu o anúncio: Android ou iOS (iPhone)."
-                  data={breakdowns.device}
                   centerLabel={activeUnit}
                   format={formatNumber}
                 />

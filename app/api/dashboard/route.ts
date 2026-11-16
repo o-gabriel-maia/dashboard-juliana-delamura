@@ -402,15 +402,8 @@ const POSITION_LABELS: Record<string, string> = {
   threads_feed: "Feed",
 };
 
-function deviceLabel(device: string) {
-  if (/^(iphone|ipad|ipod)$/.test(device)) return "iOS";
-  if (device.startsWith("android")) return "Android";
-  if (device === "desktop") return "Computador";
-  return "Outros";
-}
-
 // Resultados (leads ou compras) de um produto divididos por uma quebra da Meta
-// (idade, gênero, posicionamento ou dispositivo). É informação de apoio: se a
+// (idade, gênero ou posicionamento). É informação de apoio: se a
 // consulta falhar, os gráficos ficam vazios e o resto do dashboard continua.
 async function fetchBreakdown(
   account: Account,
@@ -459,9 +452,9 @@ async function fetchBreakdowns(
   range: DateRange,
   campaignIds?: string[]
 ) {
-  const empty = { age: [], gender: [], placement: [], device: [] } as Record<string, Slice[]>;
+  const empty = { age: [], gender: [], placement: [] } as Record<string, Slice[]>;
   if ((campaignIds ?? account.stores[group]).length === 0) return [group, empty] as const;
-  const [age, gender, placement, device] = await Promise.all([
+  const [age, gender, placement] = await Promise.all([
     fetchBreakdown(
       account,
       group,
@@ -493,17 +486,8 @@ async function fetchBreakdowns(
       false,
       campaignIds
     ),
-    fetchBreakdown(
-      account,
-      group,
-      range,
-      "impression_device",
-      (r) => deviceLabel(r.impression_device),
-      false,
-      campaignIds
-    ),
   ]);
-  return [group, { age, gender, placement, device }] as const;
+  return [group, { age, gender, placement }] as const;
 }
 
 // Tudo o que vem de uma conta de anúncios. Status e prévia dependem dos IDs que
@@ -829,7 +813,7 @@ export async function GET(request: Request) {
         };
     const account = await resolveAccount();
 
-    // Quebras por idade, gênero, posicionamento e dispositivo: só da aba aberta,
+    // Quebras por idade, gênero e posicionamento: só da aba aberta,
     // pedidas depois da tela principal para ela não esperar por 16 consultas a mais.
     const onlyBreakdown = searchParams.get("breakdowns");
     if (onlyBreakdown) {
