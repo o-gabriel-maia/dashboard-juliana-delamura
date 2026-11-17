@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import {
+  CREATIVE_IMAGE_FIELDS,
+  resolveOriginalImages,
+  type AdImage,
+  type CreativeImageInfo,
+} from "../../lib/originalImages";
 
 export const dynamic = "force-dynamic";
 
@@ -687,26 +693,37 @@ async function fetchEntities(account: Account, edge: "adsets" | "ads", ids: stri
   const fields =
     edge === "ads"
       ? "id,effective_status,preview_shareable_link," +
-        "creative.thumbnail_width(600).thumbnail_height(600){instagram_permalink_url,thumbnail_url,image_url}"
+        `creative.thumbnail_width(600).thumbnail_height(600){instagram_permalink_url,thumbnail_url,${CREATIVE_IMAGE_FIELDS}}`
       : "id,effective_status";
   const rows = await metaGet<{
     id: string;
     effective_status?: string;
     preview_shareable_link?: string;
-    creative?: { instagram_permalink_url?: string; thumbnail_url?: string; image_url?: string };
+    creative?: CreativeImageInfo & { instagram_permalink_url?: string };
   }>(account, edge, {
     fields,
     filtering: JSON.stringify([{ field: "id", operator: "IN", value: ids }]),
     limit: "500",
   });
 
+  // Imagem no formato real para a prévia ampliada (a miniatura vem recortada em quadrado).
+  const creatives = rows.map((r) => r.creative).filter((c): c is CreativeImageInfo => !!c);
+  const originals =
+    edge === "ads"
+      ? await resolveOriginalImages(creatives, (hashes) =>
+          metaGet<AdImage>(account, "adimages", {
+            hashes: JSON.stringify(hashes),
+            fields: "hash,url,width,height",
+          })
+        )
+      : new Map<CreativeImageInfo, string>();
+
   for (const obj of rows) {
     map.set(obj.id, {
       status: translateStatus(obj.effective_status),
       previewUrl: obj.creative?.instagram_permalink_url || obj.preview_shareable_link,
       thumbnailUrl: obj.creative?.thumbnail_url,
-      // Imagem original quando existe (anúncio estático); senão a própria miniatura.
-      imageUrl: obj.creative?.image_url || obj.creative?.thumbnail_url,
+      imageUrl: (obj.creative && originals.get(obj.creative)) || obj.creative?.thumbnail_url,
     });
   }
   return map;
