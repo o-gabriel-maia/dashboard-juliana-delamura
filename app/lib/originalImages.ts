@@ -6,12 +6,16 @@
 // a imagem original é buscada pelo hash na biblioteca de imagens da conta
 // (`act_<id>/adimages`), que devolve o arquivo no tamanho em que foi enviado.
 
+// Post do Instagram impulsionado não tem imagem na biblioteca da conta: a mídia
+// original vem do próprio Instagram (capa do vídeo ou a imagem do post).
+
 // Campos a pedir dentro de `creative{...}`, além dos que o dashboard já usa.
 export const CREATIVE_IMAGE_FIELDS =
-  "image_url,image_hash,asset_feed_spec{images},object_story_spec{link_data{image_hash,picture,child_attachments{image_hash,picture}},video_data{image_url,image_hash}}";
+  "image_url,image_hash,effective_instagram_media_id,asset_feed_spec{images},object_story_spec{link_data{image_hash,picture,child_attachments{image_hash,picture}},video_data{image_url,image_hash}}";
 
 export type CreativeImageInfo = {
   image_url?: string;
+  effective_instagram_media_id?: string;
   image_hash?: string;
   thumbnail_url?: string;
   asset_feed_spec?: { images?: { hash?: string }[] };
@@ -53,6 +57,38 @@ function pickFeedImage(images: AdImage[]): AdImage | undefined {
   );
 }
 
+// Mídia original dos posts do Instagram (até 50 por chamada): capa do vídeo, imagem do
+// post ou a primeira do carrossel. Falha aqui só deixa a prévia com a miniatura.
+async function fetchInstagramMedia(creatives: CreativeImageInfo[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const token = process.env.META_ACCESS_TOKEN;
+  const ids = [...new Set(creatives.map((c) => c.effective_instagram_media_id!))];
+  if (!token || ids.length === 0) return out;
+  type Media = { media_type?: string; media_url?: string; thumbnail_url?: string };
+  try {
+    for (let i = 0; i < ids.length; i += 50) {
+      const qs = new URLSearchParams({
+        ids: ids.slice(i, i + 50).join(","),
+        fields: "media_type,media_url,thumbnail_url",
+        access_token: token,
+      });
+      const res = await fetch(`https://graph.facebook.com/v21.0/?${qs.toString()}`, {
+        cache: "no-store",
+      });
+      const json = (await res.json()) as Record<string, unknown>;
+      if (json.error) continue;
+      for (const [id, value] of Object.entries(json)) {
+        const m = value as Media;
+        const url = m.media_type === "VIDEO" ? m.thumbnail_url : m.media_url || m.thumbnail_url;
+        if (url) out.set(id, url);
+      }
+    }
+  } catch {
+    // sem a mídia do Instagram, fica a miniatura
+  }
+  return out;
+}
+
 // Devolve, para cada criativo, a URL da imagem no formato real. `fetchImages` busca
 // na conta de anúncios os hashes pedidos (até 50 por chamada); se falhar, a prévia
 // continua com a imagem que havia antes.
@@ -84,6 +120,14 @@ export async function resolveOriginalImages(
   for (const { creative, hashes } of pending) {
     const chosen = pickFeedImage(hashes.map((h) => byHash.get(h)).filter((i): i is AdImage => !!i));
     if (chosen?.url) result.set(creative, chosen.url);
+  }
+
+  const igMedia = await fetchInstagramMedia(
+    creatives.filter((c) => !result.has(c) && c.effective_instagram_media_id)
+  );
+  for (const c of creatives) {
+    const url = c.effective_instagram_media_id && igMedia.get(c.effective_instagram_media_id);
+    if (!result.has(c) && url) result.set(c, url);
   }
 
   for (const c of creatives) {
