@@ -1701,8 +1701,13 @@ function LevelTable({
   const VIDEO_KEYS: SortKey[] = ["hookRate", "videoP25", "videoP50", "videoP75", "videoP100"];
 
   // Por padrão só as colunas que o cliente acompanha; as demais ficam a um clique.
+  const semTaxasDaPagina = kind === "lsq" || kind === "lsd" || kind === "promo";
+  const PAGE_RATE_KEYS: SortKey[] = ["loadRate", "pageConversionRate"];
   const available = columns.filter(
-    (c) => !hideColumns?.includes(c.key) && (videoMetrics || !VIDEO_KEYS.includes(c.key)),
+    (c) =>
+      !hideColumns?.includes(c.key) &&
+      !(semTaxasDaPagina && PAGE_RATE_KEYS.includes(c.key)) &&
+      (videoMetrics || !VIDEO_KEYS.includes(c.key)),
   );
   const visibleColumns = showAll ? available : available.filter((c) => ESSENTIAL_COLUMNS.has(c.key));
   const minWidth = 256 + (showPreviewLink ? 96 : 0) + visibleColumns.length * 112;
@@ -2761,7 +2766,7 @@ export default function Home() {
               return (
                 <KpiGrid
                   kind={activeKind}
-                  showPageRates={activeKind !== "lsq" && activeKind !== "lsd"}
+                  showPageRates={activeKind !== "lsq" && activeKind !== "lsd" && activeKind !== "promo"}
                   totals={useTs ? withTsLeads(scoped, metaTs) : scoped}
                   previous={useTs && previous ? withTsLeads(previous, metaTsPrevious) : previous}
                   previousRange={data.previousRange}
@@ -3287,8 +3292,6 @@ function LivesComparison({ rows, title }: { rows: Row[]; title: string }) {
       leads: number;
       impressions: number;
       clicks: number;
-      pageViews: number;
-      pageLeads: number;
       active: boolean;
     }
   >();
@@ -3306,8 +3309,6 @@ function LivesComparison({ rows, title }: { rows: Row[]; title: string }) {
       leads: 0,
       impressions: 0,
       clicks: 0,
-      pageViews: 0,
-      pageLeads: 0,
       active: false,
     };
     live.campaigns += 1;
@@ -3315,8 +3316,6 @@ function LivesComparison({ rows, title }: { rows: Row[]; title: string }) {
     live.leads += r.conversations;
     live.impressions += r.impressions;
     live.clicks += r.linkClicks;
-    live.pageViews += r.landingPageViews;
-    live.pageLeads += r.pageConversions;
     live.active = live.active || r.status === "Ativo";
     if (!live.date) live.date = date;
     lives.set(code, live);
@@ -3347,7 +3346,6 @@ function LivesComparison({ rows, title }: { rows: Row[]; title: string }) {
               <th className={head}>Impressões</th>
               <th className={head}>Cliques</th>
               <th className={head}>CTR</th>
-              <th className={head}>Taxa de Conversão da Página</th>
             </tr>
           </thead>
           <tbody>
@@ -3370,9 +3368,6 @@ function LivesComparison({ rows, title }: { rows: Row[]; title: string }) {
                   <td className={cell}>{formatNumber(l.clicks)}</td>
                   <td className={cell}>
                     {formatRate(l.impressions > 0 ? (l.clicks / l.impressions) * 100 : null)}
-                  </td>
-                  <td className={cell}>
-                    {formatRate(l.pageViews > 0 ? (l.pageLeads / l.pageViews) * 100 : null)}
                   </td>
                 </tr>
               );
